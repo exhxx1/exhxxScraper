@@ -3,23 +3,29 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
 
-void main() => runApp(const ExhxxWorldClassApp());
+void main() => runApp(const ExhxxGodModeApp());
 
-class ExhxxWorldClassApp extends StatelessWidget {
-  const ExhxxWorldClassApp({super.key});
+class ExhxxGodModeApp extends StatelessWidget {
+  const ExhxxGodModeApp({super.key});
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'EXHXX Omni Commander',
+      title: 'EXHXX God Mode',
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF070707),
-        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF111111)),
-        colorScheme: const ColorScheme.dark(primary: Colors.cyanAccent, secondary: Colors.amberAccent),
+        scaffoldBackgroundColor: const Color(0xFF050505),
+        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF0F0F0F)),
+        colorScheme: const ColorScheme.dark(primary: Colors.blueAccent, secondary: Colors.pinkAccent),
       ),
       home: const MainScreen(),
     );
   }
+}
+
+// كلاس لتخزين الطلبات بشكل احترافي
+class NetworkLog {
+  final String type, method, url, payload, response;
+  NetworkLog(this.type, this.method, this.url, this.payload, this.response);
 }
 
 class MainScreen extends StatefulWidget {
@@ -33,16 +39,11 @@ class _MainScreenState extends State<MainScreen> {
   late final WebViewController _controller;
   final TextEditingController _urlController = TextEditingController(text: 'https://kd1s.com');
   
-  final List<String> _logs = [];
+  final List<NetworkLog> _netLogs = [];
+  final List<String> _sysLogs = [];
 
-  bool _optOmniSniffer = false;
+  bool _optStealth = true; // تخطي Cloudflare الافتراضي
   bool _optMediaBlocker = false;
-  bool _optAutoScroll = false;
-  bool _optShadowClicker = false;
-  bool _optConsoleHijack = false;
-  bool _optSpoofer = false;
-  bool _optAntiDebug = false;
-  bool _optUnlockRightClick = false;
 
   @override
   void initState() {
@@ -50,310 +51,273 @@ class _MainScreenState extends State<MainScreen> {
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..addJavaScriptChannel('ExhxxLog', onMessageReceived: (msg) {
-        setState(() { _logs.add(msg.message); });
+        try {
+          var data = jsonDecode(msg.message);
+          setState(() {
+            _netLogs.insert(0, NetworkLog(data['type'], data['method'], data['url'], data['payload'] ?? '', data['response'] ?? ''));
+          });
+        } catch(e) {
+          setState(() { _sysLogs.insert(0, msg.message); });
+        }
       })
       ..setNavigationDelegate(NavigationDelegate(
-        onPageStarted: (url) {
-          _injectOmniRadar(); 
-        },
-        onPageFinished: (url) {
-          _applyEnabledTools();
-        },
+        onPageStarted: (url) { _injectGodModeCore(); },
+        onPageFinished: (url) { _applyTools(); },
       ))
       ..loadRequest(Uri.parse(_urlController.text));
   }
 
   // ==========================================
-  // محرك الرادار الشامل مع مفكك الشفرات (Auto-Decoder)
+  // النواة: صائد الردود والطلبات (Response & Request Catcher)
   // ==========================================
-  void _injectOmniRadar() {
-    if (!_optOmniSniffer) return;
-    
-    _controller.runJavaScript('''
-      if(!window.__exhxxOmniHooked){
-        window.__exhxxOmniHooked = true;
+  void _injectGodModeCore() {
+    // استخدمت r''' حتى ما تصير مشاكل ويا الفلاتر والرموز
+    _controller.runJavaScript(r'''
+      if(!window.__exhxxGodMode) {
+        window.__exhxxGodMode = true;
 
-        // دالة تفكيك الشفرات (URL Decode & JSON Parse) لتجميل العرض
-        function decodeAndFormat(data) {
-           if(!data) return '';
-           if(typeof data !== 'string') return 'Binary/Object';
-           
-           // محاولة فك ترميز الـ URL (تحويل %5B إلى [ وما إلى ذلك)
-           let decoded = data;
-           try { decoded = decodeURIComponent(data.replace(/\\+/g, ' ')); } catch(e) {}
-           
-           // محاولة تحويل البيانات إلى شكل JSON مرتب إذا كانت من نوع Form
-           if(decoded.includes('=')) {
-              let obj = {};
-              decoded.split('&').forEach(pair => {
-                 let parts = pair.split('=');
-                 if(parts.length === 2) obj[parts[0]] = parts[1];
-              });
-              return JSON.stringify(obj, null, 2);
-           }
-           
-           try {
-              return JSON.stringify(JSON.parse(decoded), null, 2);
-           } catch(e) {
-              return decoded.substring(0, 500); 
-           }
+        // 1. تخطي Cloudflare و Anonymization
+        Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+        
+        function sendLog(type, method, url, payload, response) {
+          if(url.includes('google-analytics') || url.includes('google.com/g/collect')) return;
+          try {
+            ExhxxLog.postMessage(JSON.stringify({
+              type: type, method: method, url: url, payload: payload, response: response
+            }));
+          } catch(e){}
         }
 
-        function logTraffic(type, method, url, data) {
-           // تجاهل روابط جوجل أنالتكس لأنها مزعجة وتملأ الشاشة
-           if(url.includes('google-analytics.com') || url.includes('google.com/g/collect')) return;
-
-           let prettyData = decodeAndFormat(data);
-           let payload = data ? "\\n[PAYLOAD]:\\n" + prettyData : "";
-           ExhxxLog.postMessage('[' + type + '] [' + method + '] ' + url + payload);
-        }
-
-        // 1. اعتراض Fetch API
+        // 2. اعتراض FETCH مع الردود (Responses)
         const origFetch = window.fetch;
         window.fetch = async function(...args) {
           let url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : 'Unknown URL');
           let method = (args[1] && args[1].method) ? args[1].method : 'GET';
           let body = (args[1] && args[1].body) ? args[1].body : '';
-          logTraffic('FETCH', method, url, body);
-          return origFetch.apply(this, args);
+          
+          try {
+            let response = await origFetch.apply(this, args);
+            let clone = response.clone();
+            clone.text().then(text => {
+              sendLog('FETCH', method, url, typeof body === 'string' ? body : 'Binary', text.substring(0,2000));
+            }).catch(e => {
+              sendLog('FETCH', method, url, typeof body === 'string' ? body : 'Binary', 'Cannot read response');
+            });
+            return response;
+          } catch(err) {
+             sendLog('FETCH', method, url, 'Error', err.toString());
+             throw err;
+          }
         };
 
-        // 2. اعتراض XMLHttpRequest
+        // 3. اعتراض XHR مع الردود
         const origOpen = XMLHttpRequest.prototype.open;
         const origSend = XMLHttpRequest.prototype.send;
         XMLHttpRequest.prototype.open = function(method, url) {
-          this._exhxxMethod = method;
-          this._exhxxUrl = url;
+          this._exMethod = method;
+          this._exUrl = url;
           origOpen.apply(this, arguments);
         };
         XMLHttpRequest.prototype.send = function(body) {
-          logTraffic('XHR', this._exhxxMethod, this._exhxxUrl, body);
+          this.addEventListener('load', function() {
+            sendLog('XHR', this._exMethod, this._exUrl, typeof body === 'string' ? body : 'Binary', this.responseText ? this.responseText.substring(0,2000) : '');
+          });
           origSend.apply(this, arguments);
         };
-
-        // 3. اعتراض Forms (النماذج - مثل تسجيل الدخول والرشق)
-        document.addEventListener('submit', function(e) {
-          if(e.target && e.target.tagName === 'FORM') {
-            let formData = new FormData(e.target);
-            let obj = {};
-            formData.forEach((value, key) => { obj[key] = value; });
-            logTraffic('FORM', e.target.method.toUpperCase(), e.target.action || window.location.href, JSON.stringify(obj));
-          }
-        }, true);
       }
     ''');
   }
 
-  void _applyEnabledTools() {
-    _injectOmniRadar(); 
-
+  void _applyTools() {
+    _injectGodModeCore();
     if (_optMediaBlocker) {
-      _controller.runJavaScript("var s=document.createElement('style');s.innerHTML='img,video,iframe,canvas{display:none !important;} *{background-image:none !important;}';document.head.appendChild(s);");
-    }
-    if (_optConsoleHijack) {
-      _controller.runJavaScript('''
-        if(!window.__exhxxConsoleHooked) {
-          window.__exhxxConsoleHooked = true;
-          const origLog = console.log;
-          console.log = function() {
-            ExhxxLog.postMessage('[CONSOLE] ' + Array.from(arguments).join(' '));
-            origLog.apply(console, arguments);
-          };
-        }
-      ''');
-    }
-    if (_optUnlockRightClick) {
-      _controller.runJavaScript('''
-        document.addEventListener('contextmenu', event => event.stopPropagation(), true);
-        document.addEventListener('selectstart', event => event.stopPropagation(), true);
-        document.addEventListener('copy', event => event.stopPropagation(), true);
-        var s=document.createElement('style');s.innerHTML='*{user-select: auto !important; -webkit-user-select: auto !important;}';document.head.appendChild(s);
-      ''');
-    }
-    if (_optAntiDebug) {
-      _controller.runJavaScript("console.warn=function(){}; console.error=function(){}; setInterval(()=>{Function.prototype.constructor=function(){};}, 100);");
-    }
-    if (_optAutoScroll) {
-      _controller.runJavaScript("if(!window.vtScroller) window.vtScroller = setInterval(()=>window.scrollBy({top:500, behavior:'smooth'}), 800);");
-    } else {
-      _controller.runJavaScript("if(window.vtScroller) clearInterval(window.vtScroller); window.vtScroller=null;");
-    }
-    if (_optShadowClicker) {
-      _controller.runJavaScript('''
-        if(!window.vtClicker) window.vtClicker = setInterval(()=>{
-          function traverse(n) {
-            let res=[];
-            if(!n) return res;
-            if(n.nodeType===1) res.push(n);
-            if(n.shadowRoot) res.push(...traverse(n.shadowRoot));
-            let c = n.shadowRoot ? n.shadowRoot.childNodes : n.childNodes;
-            if(c) for(let i=0; i<c.length; i++) res.push(...traverse(c[i]));
-            return res;
-          }
-          let all = traverse(document.documentElement);
-          let btns = all.filter(x => (x.tagName==='VT-UI-BUTTON'||x.tagName==='BUTTON') && (x.textContent||'').trim()==='...');
-          if(btns.length>0) { btns[0].scrollIntoView({block:'center'}); setTimeout(()=>btns[0].click(), 200); }
-        }, 1500);
-      ''');
-    } else {
-      _controller.runJavaScript("if(window.vtClicker) clearInterval(window.vtClicker); window.vtClicker=null;");
+      _controller.runJavaScript("var s=document.createElement('style');s.innerHTML='img,video,iframe,canvas{display:none !important;}';document.head.appendChild(s);");
     }
   }
 
-  void _harvestCookies() async {
-    final result = await _controller.runJavaScriptReturningResult("document.cookie;");
-    setState(() { _logs.add("[DATA] 🍪 COOKIES: \n" + result.toString().replaceAll('"', '')); });
-    _currentIndex = 2; 
+  // ==========================================
+  // مدفع الإعادة (Request Repeater & Modifier)
+  // ==========================================
+  void _openRepeaterDialog(NetworkLog log) {
+    TextEditingController urlCtrl = TextEditingController(text: log.url);
+    TextEditingController payloadCtrl = TextEditingController(text: log.payload);
+
+    showModalBottomSheet(
+      context: context, isScrollControlled: true, backgroundColor: const Color(0xFF151515),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 16, right: 16, top: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("مدفع الطلبات 🔁 (MITM Editor)", style: TextStyle(fontSize: 18, color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            TextField(controller: urlCtrl, style: const TextStyle(fontSize: 12), decoration: const InputDecoration(labelText: "URL الرابط", border: OutlineInputBorder())),
+            const SizedBox(height: 10),
+            TextField(controller: payloadCtrl, maxLines: 4, style: const TextStyle(fontSize: 12), decoration: const InputDecoration(labelText: "Payload البيانات", border: OutlineInputBorder())),
+            const SizedBox(height: 15),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.pinkAccent),
+                  icon: const Icon(Icons.code, color: Colors.white), label: const Text("نسخ cURL", style: TextStyle(color: Colors.white)),
+                  onPressed: () {
+                    String curl = "curl -X ${log.method} '${urlCtrl.text}' --data '${payloadCtrl.text}'";
+                    Clipboard.setData(ClipboardData(text: curl));
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ تم نسخ كود cURL!")));
+                  },
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent),
+                  icon: const Icon(Icons.send, color: Colors.white), label: const Text("إرسال الهجوم 🚀", style: TextStyle(color: Colors.white)),
+                  onPressed: () {
+                    // إرسال الطلب المعدل من داخل المتصفح
+                    String p = payloadCtrl.text.replaceAll("'", "\\'");
+                    String code = "fetch('${urlCtrl.text}', {method: '${log.method}', body: '$p'}).then(r=>r.text()).then(t=>ExhxxLog.postMessage('[REPEATER RESPONSE] ' + t.substring(0,500)));";
+                    _controller.runJavaScript(code);
+                    Navigator.pop(ctx);
+                    setState(() { _currentIndex = 2; }); // الذهاب للسجلات لرؤية الرد
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🚀 تم إطلاق الطلب المعدل!")));
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+          ],
+        ),
+      )
+    );
   }
 
-  void _extractAllLinks() async {
-    final result = await _controller.runJavaScriptReturningResult("Array.from(document.querySelectorAll('a')).map(a => a.href).join('\\n');");
-    setState(() { _logs.add("[DATA] 🔗 ALL LINKS: \n" + result.toString().replaceAll('"', '')); });
-    _currentIndex = 2;
-  }
-
-  void _extractLiveDOM() async {
-    final result = await _controller.runJavaScriptReturningResult("document.documentElement.outerHTML;");
-    setState(() { _logs.add("[DATA] 📄 HTML SOURCE: \n" + result.toString().substring(0, 1000) + "... (تم سحب الكود)"); });
-    _currentIndex = 2;
-  }
-
-  void _nukeStorage() async {
-    await _controller.clearCache();
-    await _controller.clearLocalStorage();
-    setState(() { _logs.add("[SYSTEM] ☢️ تم تدمير الكاش والبيانات بالكامل!"); });
-    _controller.reload();
-  }
-
-  void _injectCustomJs() {
-    TextEditingController jsCtrl = TextEditingController();
+  // ==========================================
+  // القائمة العائمة (Floating HUD)
+  // ==========================================
+  void _showFloatingHUD() {
     showDialog(context: context, builder: (ctx) => AlertDialog(
-      backgroundColor: const Color(0xFF1A1A1A),
-      title: const Text("حقن كود JavaScript", style: TextStyle(color: Colors.cyanAccent)),
-      content: TextField(controller: jsCtrl, maxLines: 6, style: const TextStyle(color: Colors.white, fontFamily: 'monospace'), decoration: const InputDecoration(hintText: "اكتب الكود هنا...", border: OutlineInputBorder())),
-      actions: [
-        TextButton(onPressed: ()=>Navigator.pop(ctx), child: const Text("إلغاء", style: TextStyle(color: Colors.grey))),
-        ElevatedButton(onPressed: (){
-          _controller.runJavaScript(jsCtrl.text);
-          Navigator.pop(ctx);
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("💉 تم حقن الكود بنجاح!")));
-        }, style: ElevatedButton.styleFrom(backgroundColor: Colors.cyanAccent, foregroundColor: Colors.black), child: const Text("حقن وتنفيد"))
-      ],
+      backgroundColor: const Color(0xFF111111),
+      title: const Text("لوحة التحكم السريعة 🛸", style: TextStyle(color: Colors.white)),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(leading: const Icon(Icons.cookie, color: Colors.orange), title: const Text("نسخ الكوكيز"), onTap: () async {
+            final res = await _controller.runJavaScriptReturningResult("document.cookie;");
+            Clipboard.setData(ClipboardData(text: res.toString().replaceAll('"', '')));
+            Navigator.pop(ctx);
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ تم نسخ الكوكيز")));
+          }),
+          ListTile(leading: const Icon(Icons.speed, color: Colors.redAccent), title: const Text("تصفير الجلسة (تبديل حساب)"), onTap: () async {
+            await _controller.clearCache();
+            await _controller.clearLocalStorage();
+            _controller.reload();
+            Navigator.pop(ctx);
+          }),
+        ],
+      ),
     ));
   }
 
+  // ==========================================
+  // الواجهات (UI)
+  // ==========================================
   Widget _buildBrowserTab() {
-    return Column(
+    return Stack(
       children: [
-        Container(
-          color: const Color(0xFF111111), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-          child: Row(
-            children: [
-              Expanded(child: TextField(
-                controller: _urlController, style: const TextStyle(fontSize: 14, color: Colors.white),
-                decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 15), hintText: "https://...", 
-                  filled: true, fillColor: Colors.black, 
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none)
-                ),
-                onSubmitted: (val) {
-                  if(!val.startsWith("http")) val = "https://" + val;
-                  _controller.loadRequest(Uri.parse(val));
-                },
-              )),
-              IconButton(icon: const Icon(Icons.rocket_launch, color: Colors.cyanAccent), onPressed: () {
-                String val = _urlController.text;
-                if(!val.startsWith("http")) val = "https://" + val;
-                _controller.loadRequest(Uri.parse(val));
-              }),
-              IconButton(icon: const Icon(Icons.refresh, color: Colors.amberAccent), onPressed: () => _controller.reload()),
-            ],
-          ),
+        Column(
+          children: [
+            Container(
+              color: const Color(0xFF111111), padding: const EdgeInsets.all(8),
+              child: Row(
+                children: [
+                  Expanded(child: TextField(
+                    controller: _urlController, style: const TextStyle(fontSize: 14, color: Colors.white),
+                    decoration: InputDecoration(contentPadding: const EdgeInsets.symmetric(horizontal: 15), filled: true, fillColor: Colors.black, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none)),
+                    onSubmitted: (val) { if(!val.startsWith("http")) val = "https://" + val; _controller.loadRequest(Uri.parse(val)); },
+                  )),
+                  IconButton(icon: const Icon(Icons.rocket_launch, color: Colors.blueAccent), onPressed: () {
+                    String val = _urlController.text; if(!val.startsWith("http")) val = "https://" + val; _controller.loadRequest(Uri.parse(val));
+                  }),
+                ],
+              ),
+            ),
+            Expanded(child: WebViewWidget(controller: _controller)),
+          ],
         ),
-        Expanded(child: WebViewWidget(controller: _controller)),
+        Positioned(
+          bottom: 20, right: 20,
+          child: FloatingActionButton(
+            backgroundColor: Colors.blueAccent.withOpacity(0.8),
+            onPressed: _showFloatingHUD,
+            child: const Icon(Icons.dashboard_customize, color: Colors.white),
+          ),
+        )
       ],
     );
   }
 
-  Widget _buildToolsTab() {
-    return ListView(
-      padding: const EdgeInsets.all(12),
-      children: [
-        const Text("أنظمة الاستخبارات (Intelligence)", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.cyanAccent)),
-        const Divider(color: Colors.white24),
-        SwitchListTile(activeColor: Colors.cyanAccent, title: const Text("📡 الرادار الشامل (Omni-Sniffer)"), subtitle: const Text("يعترض الطلبات ويفك التشفير تلقائياً"), value: _optOmniSniffer, onChanged: (v){ setState(() { _optOmniSniffer=v; _injectOmniRadar(); });}),
-        SwitchListTile(activeColor: Colors.cyanAccent, title: const Text("🎙️ مختطف الكونسول (Console Hijack)"), subtitle: const Text("يتجسس على أخطاء ورسائل الموقع السرية"), value: _optConsoleHijack, onChanged: (v){ setState(() { _optConsoleHijack=v; _applyEnabledTools(); });}),
-        SwitchListTile(activeColor: Colors.cyanAccent, title: const Text("🔓 فك حظر النسخ (Unlock Copy)"), subtitle: const Text("يلغي حظر الكليك يمين والنسخ بالموقع"), value: _optUnlockRightClick, onChanged: (v){ setState(() { _optUnlockRightClick=v; _applyEnabledTools(); });}),
-        
-        const SizedBox(height: 20),
-        const Text("أنظمة التحكم والأتمتة (Control & Automation)", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.amberAccent)),
-        const Divider(color: Colors.white24),
-        SwitchListTile(activeColor: Colors.amberAccent, title: const Text("🚀 تيربو بلوكر (Media Blocker)"), subtitle: const Text("إخفاء الميديا لزيادة سرعة الموقع 10x"), value: _optMediaBlocker, onChanged: (v){ setState(() { _optMediaBlocker=v; _applyEnabledTools(); });}),
-        SwitchListTile(activeColor: Colors.amberAccent, title: const Text("📜 التمرير السريع (Fast Scroll)"), subtitle: const Text("روبوت ينزل الشاشة بسرعة لتحفيز الـ Lazy Load"), value: _optAutoScroll, onChanged: (v){ setState(() { _optAutoScroll=v; _applyEnabledTools(); });}),
-        SwitchListTile(activeColor: Colors.amberAccent, title: const Text("🤖 النقار الجذري (Shadow Clicker)"), subtitle: const Text("اختراق الظل لضغط أزرار Load More"), value: _optShadowClicker, onChanged: (v){ setState(() { _optShadowClicker=v; _applyEnabledTools(); });}),
-        SwitchListTile(activeColor: Colors.amberAccent, title: const Text("💻 مزيف الجهاز (Desktop Spoofer)"), subtitle: const Text("تغيير البصمة لـ Windows PC"), value: _optSpoofer, onChanged: (v){ 
-          setState(() { _optSpoofer=v; });
-          _controller.setUserAgent(_optSpoofer ? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" : "");
-          _controller.reload();
-        }),
-        SwitchListTile(activeColor: Colors.amberAccent, title: const Text("🛡️ قاتل الحمايات (Anti-Debug)"), subtitle: const Text("يمنع الموقع من اكتشاف أدواتك"), value: _optAntiDebug, onChanged: (v){ setState(() { _optAntiDebug=v; _applyEnabledTools(); });}),
-
-        const SizedBox(height: 20),
-        const Text("عمليات السحب النووية (Extraction)", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.pinkAccent)),
-        const Divider(color: Colors.white24),
-        ListTile(leading: const Icon(Icons.cookie, color: Colors.orange), title: const Text("سحب كل الكوكيز (Harvest Cookies)"), onTap: _harvestCookies),
-        ListTile(leading: const Icon(Icons.link, color: Colors.lightBlue), title: const Text("استخراج كل الروابط (Extract All Links)"), onTap: _extractAllLinks),
-        ListTile(leading: const Icon(Icons.html, color: Colors.green), title: const Text("سحب كود الـ HTML الحي (Live DOM)"), onTap: _extractLiveDOM),
-        ListTile(leading: const Icon(Icons.code, color: Colors.purpleAccent), title: const Text("حقن سكربت JS مخصص (Inject Code)"), onTap: _injectCustomJs),
-        ListTile(leading: const Icon(Icons.delete_forever, color: Colors.red), title: const Text("المسح النووي وتصفير الهوية (Nuke Data)"), onTap: _nukeStorage),
-        const SizedBox(height: 40),
-      ],
-    );
-  }
-
-  Widget _buildLogsTab() {
+  Widget _buildNetworkTab() {
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), color: const Color(0xFF111111),
+          padding: const EdgeInsets.all(10), color: const Color(0xFF111111),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("OMNI TERMINAL", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2, color: Colors.grey)),
-              Row(
-                children: [
-                  IconButton(icon: const Icon(Icons.copy, color: Colors.cyanAccent), onPressed: (){
-                    Clipboard.setData(ClipboardData(text: _logs.join('\n\\n')));
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ تم نسخ جميع البيانات للاستخدام!")));
-                  }),
-                  IconButton(icon: const Icon(Icons.delete_sweep, color: Colors.redAccent), onPressed: (){
-                    setState((){ _logs.clear(); });
-                  }),
-                ],
-              )
+              const Text("NETWORK RADAR 📡", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1, color: Colors.blueAccent)),
+              IconButton(icon: const Icon(Icons.delete_sweep, color: Colors.redAccent), onPressed: () => setState((){ _netLogs.clear(); })),
             ],
           ),
         ),
         Expanded(
-          child: Container(
-            color: Colors.black,
-            child: ListView.builder(
-              itemCount: _logs.length,
-              itemBuilder: (ctx, i) {
-                Color textColor = Colors.white;
-                if (_logs[i].startsWith('[FETCH]')) textColor = Colors.greenAccent;
-                else if (_logs[i].startsWith('[XHR]')) textColor = Colors.cyanAccent;
-                else if (_logs[i].startsWith('[FORM]')) textColor = Colors.pinkAccent;
-                else if (_logs[i].startsWith('[DATA]')) textColor = Colors.amberAccent;
-                else if (_logs[i].startsWith('[CONSOLE]')) textColor = Colors.yellowAccent;
-                else if (_logs[i].startsWith('[SYSTEM]')) textColor = Colors.redAccent;
+          child: ListView.builder(
+            itemCount: _netLogs.length,
+            itemBuilder: (ctx, i) {
+              var log = _netLogs[i];
+              return Card(
+                color: Colors.black, margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: ExpansionTile(
+                  title: Text("[${log.method}] ${log.url}", style: const TextStyle(color: Colors.greenAccent, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  subtitle: Text("Type: ${log.type}", style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8), width: double.infinity, color: const Color(0xFF0A0A0A),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("PAYLOAD:", style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 11)),
+                          SelectableText(log.payload.isEmpty ? "None" : log.payload, style: const TextStyle(color: Colors.white, fontSize: 11)),
+                          const Divider(color: Colors.white24),
+                          const Text("RESPONSE:", style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold, fontSize: 11)),
+                          SelectableText(log.response.isEmpty ? "None" : log.response, style: const TextStyle(color: Colors.white, fontSize: 11)),
+                          const SizedBox(height: 10),
+                          Center(
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white),
+                              icon: const Icon(Icons.edit), label: const Text("تعديل وإرسال (MITM)"),
+                              onPressed: () => _openRepeaterDialog(log),
+                            ),
+                          )
+                        ],
+                      ),
+                    )
+                  ],
+                ),
+              );
+            },
+          ),
+        )
+      ],
+    );
+  }
 
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                  child: SelectableText("> ${_logs[i]}", style: TextStyle(color: textColor, fontFamily: 'monospace', fontSize: 13)),
-                );
-              },
-            ),
+  Widget _buildSysLogsTab() {
+    return Column(
+      children: [
+        Container(padding: const EdgeInsets.all(10), color: const Color(0xFF111111), child: const Center(child: Text("SYSTEM & CONSOLE LOGS", style: TextStyle(color: Colors.grey)))),
+        Expanded(
+          child: ListView.builder(
+            itemCount: _sysLogs.length,
+            itemBuilder: (ctx, i) => Padding(padding: const EdgeInsets.all(8), child: SelectableText("> ${_sysLogs[i]}", style: const TextStyle(color: Colors.yellowAccent, fontFamily: 'monospace', fontSize: 12))),
           ),
         )
       ],
@@ -366,20 +330,17 @@ class _MainScreenState extends State<MainScreen> {
       body: SafeArea(
         child: IndexedStack(
           index: _currentIndex,
-          children: [_buildBrowserTab(), _buildToolsTab(), _buildLogsTab()],
+          children: [_buildBrowserTab(), _buildNetworkTab(), _buildSysLogsTab()],
         ),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        selectedItemColor: Colors.cyanAccent,
-        unselectedItemColor: Colors.grey[700],
-        backgroundColor: const Color(0xFF111111),
-        type: BottomNavigationBarType.fixed,
+        selectedItemColor: Colors.blueAccent, unselectedItemColor: Colors.grey[700], backgroundColor: const Color(0xFF111111),
         onTap: (idx) => setState(() { _currentIndex = idx; }),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.public), label: "Browser"),
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard_customize), label: "Omni Tools"),
-          BottomNavigationBarItem(icon: Icon(Icons.terminal), label: "Terminal"),
+          BottomNavigationBarItem(icon: Icon(Icons.radar), label: "Network"),
+          BottomNavigationBarItem(icon: Icon(Icons.terminal), label: "Console"),
         ],
       ),
     );
