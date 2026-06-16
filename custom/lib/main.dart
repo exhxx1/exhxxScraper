@@ -165,7 +165,8 @@ class _MainScreenState extends State<MainScreen> {
             children: [
               Expanded(child: TextField(
                 controller: _urlController, style: const TextStyle(fontSize: 14),
-                decoration: InputDecoration(contentPadding: const EdgeInsets.symmetric(horizontal: 15), hintText: "Enter URL...", filled: true, fillColor: Colors.black, border: OutlineBorder(borderRadius: BorderRadius.circular(30))),
+                // تم إصلاح OutlineBorder إلى OutlineInputBorder
+                decoration: InputDecoration(contentPadding: const EdgeInsets.symmetric(horizontal: 15), hintText: "Enter URL...", filled: true, fillColor: Colors.black, border: OutlineInputBorder(borderRadius: BorderRadius.circular(30))),
                 onSubmitted: (val) => _controller.loadRequest(Uri.parse(val)),
               )),
               IconButton(icon: const Icon(Icons.send, color: Colors.tealAccent), onPressed: () => _controller.loadRequest(Uri.parse(_urlController.text))),
@@ -190,7 +191,7 @@ class _MainScreenState extends State<MainScreen> {
         SwitchListTile(title: const Text("🤖 النقار الجذري (Shadow Auto-Clicker)"), subtitle: const Text("يخترق الظل ويضغط أزرار (...)"), value: _optAutoClicker, onChanged: (v){ setState(() { _optAutoClicker=v; _applyEnabledTools(); });}),
         SwitchListTile(title: const Text("🕶️ فارض الوضع الليلي (Dark Mode)"), subtitle: const Text("يقلب ألوان المواقع المزعجة"), value: _optDarkMode, onChanged: (v){ setState(() { _optDarkMode=v; _applyEnabledTools(); });}),
         SwitchListTile(title: const Text("🛡️ مانع التتبع (Anti-Debug Bypass)"), subtitle: const Text("يمنع المواقع من مراقبة السكربتات"), value: _optAntiDebug, onChanged: (v){ setState(() { _optAntiDebug=v; _applyEnabledTools(); });}),
-        SwitchListTile(title: const Text("💻 مزيف الجهاز (Desktop Spoofer)"), subtitle: const Text("يعرض الموقع ككمبيوتر ويندوز (يتطلب تحديث)"), value: _optSpoofer, onChanged: (v){ 
+        SwitchListTile(title: const Text("💻 مزيف الجهاز (Desktop Spoofer)"), subtitle: const Text("يعرض الموقع ككمبيوتر ويندوز"), value: _optSpoofer, onChanged: (v){ 
           setState(() { _optSpoofer=v; });
           _controller.setUserAgent(_optSpoofer ? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" : "");
           _controller.reload();
