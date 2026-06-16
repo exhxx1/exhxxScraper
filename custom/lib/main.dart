@@ -50,72 +50,81 @@ class _ScraperScreenState extends State<ScraperScreen> {
       ..loadRequest(Uri.parse(targetUrl));
   }
 
-  // دالة تشغيل روبوت النقر (النقار)
+  // دالة تشغيل النقار الذكي والمحسّن
   Future<void> _startAutoClicker() async {
     setState(() { _isAutoClicking = true; });
     
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('🤖 تم تشغيل النقار! راح ينزل ويضغط على (...) فقط.'),
+        content: Text('🤖 تم تشغيل النقار الذكي! راح ينزل بهدوء ويوقف تلقائياً من يخلص.'),
         backgroundColor: Colors.orange,
-        duration: Duration(seconds: 3),
+        duration: Duration(seconds: 4),
       ),
     );
 
-    // كود جافاسكربت نقي: ينزل الشاشة، يبحث عن (...) في كل الطبقات المخفية، ويضغط!
-    final String jsPureClicker = '''
+    // كود جافاسكربت المحسن بناءً على التحليل المعماري
+    final String jsSmartClicker = '''
       if (window.vtClicker) clearInterval(window.vtClicker);
       
+      let failCount = 0; // عداد ذكي لاكتشاف نهاية القائمة
+      const MAX_FAILS = 8; // إذا بحث 8 مرات متتالية وما لقى الزر، يطفي نفسه
+
       window.vtClicker = setInterval(function() {
-        // 1. التمرير للأسفل ببطء لضمان ظهور الزر
-        window.scrollBy(0, 800);
+        // 1. التمرير الهادئ (Smooth Scroll) بمقدار أقل لتجنب تجاوز الزر
+        window.scrollBy({ top: 400, left: 0, behavior: 'smooth' });
         
-        let clicked = false;
-
-        // 2. دالة اختراق الطبقات المخفية (Shadow DOM) والبحث عن الزر
-        function findAndClick(node) {
-            if (clicked || !node || node.nodeType !== 1) return;
-
-            // فحص إذا كان العنصر هو زر
-            if (node.tagName === 'VT-UI-BUTTON' || node.tagName === 'BUTTON') {
-                let text = (node.textContent || "").trim();
-                let aria = (node.getAttribute('aria-label') || "").toLowerCase();
-                let title = (node.getAttribute('title') || "").toLowerCase();
-
-                // إذا كان الزر يحتوي على نقاط أو اسمه تحميل المزيد
-                if (text === '...' || aria.includes('load more') || title.includes('load more')) {
-                    node.click();
-                    clicked = true;
-                    return;
-                }
+        // 2. دالة المسح الشامل القوية لكل عناصر الصفحة (بما فيها الـ Shadow DOM)
+        function getAllElements(root) {
+            let all = [];
+            function traverse(node) {
+                if (!node || node.nodeType !== 1) return;
+                all.push(node);
+                if (node.shadowRoot) traverse(node.shadowRoot);
+                let children = node.children || [];
+                for (let i = 0; i < children.length; i++) traverse(children[i]);
             }
+            traverse(root);
+            return all;
+        }
 
-            // الغوص في الطبقات المخفية (Shadow Root)
-            if (node.shadowRoot) findAndClick(node.shadowRoot);
+        let elements = getAllElements(document.documentElement);
+        
+        // البحث عن الزر ضمن جميع العناصر المستخرجة
+        let targetBtn = elements.find(n => {
+            if (n.tagName === 'VT-UI-BUTTON' || n.tagName === 'BUTTON') {
+                let text = (n.textContent || "").trim();
+                let aria = (n.getAttribute('aria-label') || "").toLowerCase();
+                let title = (n.getAttribute('title') || "").toLowerCase();
+                return text === '...' || aria.includes('load more') || title.includes('load more');
+            }
+            return false;
+        });
 
-            // الغوص في العناصر العادية
-            let children = node.children || [];
-            for (let i = 0; i < children.length; i++) {
-                findAndClick(children[i]);
+        // 3. اتخاذ القرار (الضغط أو زيادة العداد)
+        if (targetBtn) {
+            targetBtn.click();
+            failCount = 0; // تصفير العداد لأننا لقينا الزر
+        } else {
+            failCount++; // زيادة العداد
+            if (failCount >= MAX_FAILS) {
+                // إيقاف الروبوت تلقائياً لعدم وجود الزر لفترة طويلة
+                clearInterval(window.vtClicker);
+                console.log("EXHXX_BOT: Finished all clicks.");
             }
         }
 
-        // بدء البحث من بداية الصفحة
-        findAndClick(document.body);
-
-      }, 1500); // يفحص ويضغط كل ثانية ونصف
+      }, 1500); // الانتظار 1.5 ثانية يكفي لتحميل البيانات الجديدة بهدوء
     ''';
 
-    await _controller.runJavaScript(jsPureClicker);
+    await _controller.runJavaScript(jsSmartClicker);
   }
 
-  // دالة إيقاف الروبوت
   Future<void> _stopAutoClicker() async {
     setState(() { _isAutoClicking = false; });
     await _controller.runJavaScript('if (window.vtClicker) clearInterval(window.vtClicker);');
     
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('🛑 تم إيقاف النقار! تقدر تنسخ الدومينات براحتك هسه.'), backgroundColor: Colors.teal),
+      const SnackBar(content: Text('🛑 تم إيقاف النقار!'), backgroundColor: Colors.teal),
     );
   }
 
@@ -123,7 +132,7 @@ class _ScraperScreenState extends State<ScraperScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('EXHXX CLICKER 🤖', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('EXHXX SMART CLICKER 🤖', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         centerTitle: true,
         actions: [
           IconButton(
@@ -143,7 +152,6 @@ class _ScraperScreenState extends State<ScraperScreen> {
             const Center(child: CircularProgressIndicator(color: Colors.orangeAccent)),
         ],
       ),
-      // زر عائم واحد كبير بنص الشاشة للتحكم بالروبوت
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _isAutoClicking ? _stopAutoClicker : _startAutoClicker,
