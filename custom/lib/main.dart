@@ -12,7 +12,7 @@ class ExhxxScraperApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'EXHXX Lab',
+      title: 'EXHXX Target Lock',
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF121212),
         appBarTheme: const AppBarTheme(backgroundColor: Colors.black),
@@ -32,7 +32,10 @@ class ScraperScreen extends StatefulWidget {
 class _ScraperScreenState extends State<ScraperScreen> {
   late final WebViewController _controller;
   bool _isLoading = true;
-  String _activeBotName = "";
+  
+  // حالات الروبوت: 0 = متوقف، 1 = ينتظر لمستك للزر، 2 = كاعد يضغط تلقائياً
+  int _botState = 0; 
+  
   final String targetUrl = 'https://www.virustotal.com/gui/domain/tiktokcdn.com/relations';
 
   @override
@@ -40,6 +43,22 @@ class _ScraperScreenState extends State<ScraperScreen> {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel(
+        'ExhxxChannel',
+        onMessageReceived: (JavaScriptMessage message) {
+          if (message.message == 'TARGET_LOCKED') {
+            setState(() { _botState = 2; });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('🎯 تم قفل الهدف بالملم! الروبوت بدأ بالضغط...'), backgroundColor: Colors.orange),
+            );
+          } else if (message.message == 'STOP_BOT') {
+            setState(() { _botState = 0; });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('🛑 الزر اختفى! (انتهت القائمة بالكامل).'), backgroundColor: Colors.teal, duration: Duration(seconds: 4)),
+            );
+          }
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (String url) {
@@ -50,175 +69,92 @@ class _ScraperScreenState extends State<ScraperScreen> {
       ..loadRequest(Uri.parse(targetUrl));
   }
 
-  // دالة إطلاق الروبوت بناءً على الرقم المختار من 1 إلى 6
-  Future<void> _fireBot(int strategy, String botName) async {
-    setState(() { _activeBotName = botName; });
+  // دالة تفعيل الاستماع للمسة المستخدم (أخذ المقاس بالملم)
+  Future<void> _startTargeting() async {
+    setState(() { _botState = 1; }); // حالة انتظار اللمسة
+    
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('🚀 تم تشغيل: \$botName'), backgroundColor: Colors.orange, duration: const Duration(seconds: 2)),
+      const SnackBar(
+        content: Text('👆 اضغط بيدك على زر (...) اللي تريده الآن!'),
+        backgroundColor: Colors.blueAccent,
+        duration: Duration(seconds: 5),
+      ),
     );
 
-    // سكريبت الجافاسكربت الشامل الذي يحتوي على 6 خطط هجومية
-    final String jsArsenal = '''
+    // كود جافاسكربت يسجل لمستك ويقفل على الزر اللي اختاريته
+    final String jsLockOn = '''
       if (window.vtClicker) clearInterval(window.vtClicker);
       
-      window.vtClicker = setInterval(function() {
-        let strategy = $strategy;
-        
-        // مسح الظل الشامل
-        function getAllElements(root) {
-            let all = [];
-            function traverse(node) {
-                if (!node || node.nodeType !== 1) return;
-                all.push(node);
-                if (node.shadowRoot) traverse(node.shadowRoot);
-                let children = node.shadowRoot ? node.shadowRoot.childNodes : node.childNodes;
-                if (children) { for (let i = 0; i < children.length; i++) traverse(children[i]); }
-            }
-            traverse(root);
-            return all;
-        }
-
-        let elements = getAllElements(document.documentElement);
-        let clicked = false;
-
-        // ---------------------------------------------------------
-        // الخطة 1: القناص المباشر (يضغط على أول زر ... يلقاه بالشاشة)
-        // ---------------------------------------------------------
-        if (strategy === 1) {
-            window.scrollBy({ top: 300, behavior: 'smooth' });
-            let btn = elements.find(n => (n.tagName === 'VT-UI-BUTTON' || n.tagName === 'BUTTON') && (n.textContent || "").trim() === '...');
-            if (btn) { btn.scrollIntoView({block: 'center'}); setTimeout(()=>btn.click(), 200); clicked = true; }
-        }
-
-        // ---------------------------------------------------------
-        // الخطة 2: قناص الحاوية (يبحث عن قسم Subdomains ويقفل عليه)
-        // ---------------------------------------------------------
-        else if (strategy === 2) {
-            window.scrollBy({ top: 300, behavior: 'smooth' });
-            let subdomainsContainer = elements.find(n => n.textContent && n.textContent.includes('Subdomains') && n.tagName.includes('VT-UI'));
-            if (subdomainsContainer) {
-                let btns = getAllElements(subdomainsContainer).filter(n => (n.tagName === 'VT-UI-BUTTON' || n.tagName === 'BUTTON') && (n.textContent || "").trim() === '...');
-                if (btns.length > 0) { btns[0].scrollIntoView({block: 'center'}); setTimeout(()=>btns[0].click(), 200); clicked = true; }
-            }
-        }
-
-        // ---------------------------------------------------------
-        // الخطة 3: محاكي الماوس الحقيقي (Event Dispatcher)
-        // ---------------------------------------------------------
-        else if (strategy === 3) {
-            window.scrollBy({ top: 300, behavior: 'smooth' });
-            let btn = elements.find(n => (n.tagName === 'VT-UI-BUTTON' || n.tagName === 'BUTTON') && (n.textContent || "").trim() === '...');
-            if (btn) {
-                btn.scrollIntoView({block: 'center'});
-                setTimeout(() => {
-                    btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, composed: true }));
-                }, 200);
-                clicked = true;
-            }
-        }
-
-        // ---------------------------------------------------------
-        // الخطة 4: باحث الأكواد المخفية (Aria-Label)
-        // ---------------------------------------------------------
-        else if (strategy === 4) {
-            window.scrollBy({ top: 300, behavior: 'smooth' });
-            let btn = elements.find(n => {
-               let aria = (n.getAttribute('aria-label') || "").toLowerCase();
-               let title = (n.getAttribute('title') || "").toLowerCase();
-               return aria.includes('load') || title.includes('more');
-            });
-            if (btn) { btn.scrollIntoView({block: 'center'}); setTimeout(()=>btn.click(), 200); clicked = true; }
-        }
-
-        // ---------------------------------------------------------
-        // الخطة 5: المجنزرة (يضغط على كل أزرار ... في كل الأقسام معاً!)
-        // ---------------------------------------------------------
-        else if (strategy === 5) {
-            window.scrollBy({ top: 500, behavior: 'smooth' });
-            let btns = elements.filter(n => (n.tagName === 'VT-UI-BUTTON' || n.tagName === 'BUTTON') && (n.textContent || "").trim() === '...');
-            btns.forEach(b => b.click()); // يضغطها كلها بدون تفكير
-            if(btns.length > 0) clicked = true;
-        }
-
-        // ---------------------------------------------------------
-        // الخطة 6: القناص الجغرافي (يبحث بجوار كلمة Subdomains مباشرة)
-        // ---------------------------------------------------------
-        else if (strategy === 6) {
-            let walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
-            let node;
-            while (node = walker.nextNode()) {
-                if (node.nodeValue.includes('Subdomains')) {
-                    let parent = node.parentElement;
-                    for(let i=0; i<5; i++) { if(parent) parent = parent.parentElement; } // اصعد 5 درجات
-                    if (parent) {
-                        let btn = getAllElements(parent).find(n => n.textContent && n.textContent.trim() === '...');
-                        if (btn) { btn.scrollIntoView({block: 'center'}); setTimeout(()=>btn.click(), 200); clicked = true; break; }
-                    }
-                }
-            }
-        }
-
-      }, 1500); 
+      // دالة صيد اللمسة
+      const touchInterceptor = function(e) {
+          // منع النقرة من تفعيل شيء آخر في الموقع مؤقتاً
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // الخدعة السحرية: composedPath تخترق كل طبقات الظل وتجيب العنصر اللي انلمس بالملم!
+          let path = e.composedPath();
+          let targetBtn = null;
+          
+          // البحث في مسار اللمسة عن زر
+          for(let i=0; i<path.length; i++) {
+              if (path[i].tagName === 'VT-UI-BUTTON' || path[i].tagName === 'BUTTON' || (path[i].textContent && path[i].textContent.trim() === '...')) {
+                  targetBtn = path[i];
+                  break;
+              }
+          }
+          if (!targetBtn) targetBtn = path[0]; // إذا ما لقى زر رسمي، يقفل على النص الملموس
+          
+          window.vtLockedTarget = targetBtn; // تم قفل الهدف!
+          
+          // إزالة الاستماع للمسات حتى ترجع الصفحة طبيعية
+          document.removeEventListener('click', touchInterceptor, true);
+          
+          // إخبار التطبيق أنه تم القفل
+          if (window.ExhxxChannel) window.ExhxxChannel.postMessage('TARGET_LOCKED');
+          
+          // بدء الروبوت بالضغط على هذا العنصر المختار حصراً
+          let failCount = 0;
+          window.vtClicker = setInterval(function() {
+              if (window.vtLockedTarget) {
+                  // التحقق هل الزر لا يزال موجود بالصفحة (ما انمسح لأن القائمة خلصت)
+                  let isStillInDOM = window.vtLockedTarget.getRootNode() !== window.vtLockedTarget;
+                  
+                  if (isStillInDOM) {
+                      // النزول لمستوى الزر والضغط عليه
+                      window.vtLockedTarget.scrollIntoView({behavior: 'smooth', block: 'center'});
+                      setTimeout(() => {
+                          try { window.vtLockedTarget.click(); } catch(err){}
+                      }, 200);
+                      failCount = 0;
+                  } else {
+                      // الزر انمسح من الموقع (يعني القائمة خلصت)
+                      failCount++;
+                      if (failCount > 3) {
+                          clearInterval(window.vtClicker);
+                          if (window.ExhxxChannel) window.ExhxxChannel.postMessage('STOP_BOT');
+                      }
+                  }
+              }
+          }, 1500); // يضغط كل ثانية ونص
+      };
+      
+      // تفعيل اعتراض أول لمسة قادمة لك
+      document.addEventListener('click', touchInterceptor, true);
     ''';
 
-    await _controller.runJavaScript(jsArsenal);
+    await _controller.runJavaScript(jsLockOn);
   }
 
-  Future<void> _stopAllBots() async {
-    setState(() { _activeBotName = ""; });
-    await _controller.runJavaScript('if (window.vtClicker) clearInterval(window.vtClicker);');
+  Future<void> _stopAutoClicker() async {
+    setState(() { _botState = 0; });
+    await _controller.runJavaScript('''
+      if (window.vtClicker) clearInterval(window.vtClicker);
+      // مسح مستمع اللمسات إذا المستخدم بطل
+      document.removeEventListener('click', window.touchInterceptor, true);
+    ''');
+    
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('🛑 تم إيقاف جميع الروبوتات.'), backgroundColor: Colors.red),
-    );
-  }
-
-  // واجهة اختيار الروبوتات (المختبر)
-  void _openLabMenu() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1E1E1E),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('🧪 مختبر الروبوتات (اختر خطة وجرب)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
-              const SizedBox(height: 15),
-              Wrap(
-                spacing: 10, runSpacing: 10,
-                alignment: WrapAlignment.center,
-                children: [
-                  _botButton(1, '1. المباشر (أول زر)', Colors.blue),
-                  _botButton(2, '2. قناص الحاوية (مخصص)', Colors.green),
-                  _botButton(3, '3. محاكي الماوس', Colors.purple),
-                  _botButton(4, '4. باحث الأكواد', Colors.teal),
-                  _botButton(5, '5. المجنزرة (يضغط الكل)', Colors.orange),
-                  _botButton(6, '6. القناص الجغرافي', Colors.brown),
-                ],
-              ),
-              const SizedBox(height: 15),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 50)),
-                onPressed: () { Navigator.pop(context); _stopAllBots(); },
-                icon: const Icon(Icons.stop), label: const Text('إيقاف الروبوت الحالي 🛑', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              )
-            ],
-          ),
-        );
-      }
-    );
-  }
-
-  Widget _botButton(int id, String title, Color color) {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white),
-      onPressed: () {
-        Navigator.pop(context);
-        _fireBot(id, title);
-      },
-      child: Text(title),
+      const SnackBar(content: Text('🛑 تم إيقاف الروبوت يدوياً!'), backgroundColor: Colors.teal),
     );
   }
 
@@ -226,27 +162,36 @@ class _ScraperScreenState extends State<ScraperScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_activeBotName.isEmpty ? 'EXHXX LAB 🧪' : 'شغال: $_activeBotName 🤖', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        title: const Text('EXHXX LOCK-ON 🎯', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () { _stopAllBots(); setState(() { _isLoading = true; }); _controller.reload(); },
+            onPressed: () {
+              if (_botState != 0) _stopAutoClicker();
+              setState(() { _isLoading = true; });
+              _controller.reload();
+            },
           )
         ],
       ),
       body: Stack(
         children: [
           WebViewWidget(controller: _controller),
-          if (_isLoading) const Center(child: CircularProgressIndicator(color: Colors.tealAccent)),
+          if (_isLoading)
+            const Center(child: CircularProgressIndicator(color: Colors.orangeAccent)),
         ],
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openLabMenu,
-        backgroundColor: Colors.tealAccent,
+        onPressed: _botState == 0 ? _startTargeting : _stopAutoClicker,
+        backgroundColor: _botState == 0 ? Colors.tealAccent : (_botState == 1 ? Colors.blueAccent : Colors.redAccent),
         foregroundColor: Colors.black,
-        icon: const Icon(Icons.science),
-        label: const Text('فتح المختبر 🧪', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        icon: Icon(_botState == 0 ? Icons.ads_click : (_botState == 1 ? Icons.touch_app : Icons.stop)),
+        label: Text(
+          _botState == 0 ? 'تحديد الهدف يدوياً 🎯' : (_botState == 1 ? '👆 المس الزر الآن!' : 'الروبوت يعمل.. إيقاف 🛑'),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
       ),
     );
   }
