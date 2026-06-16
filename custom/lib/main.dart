@@ -31,13 +31,10 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
   late final WebViewController _controller;
-  final TextEditingController _urlController = TextEditingController(text: 'https://www.virustotal.com');
+  final TextEditingController _urlController = TextEditingController(text: 'https://kd1s.com');
   
   final List<String> _logs = [];
 
-  // ==========================================
-  // حالات ترسانة الأدوات (Tool States)
-  // ==========================================
   bool _optOmniSniffer = false;
   bool _optMediaBlocker = false;
   bool _optAutoScroll = false;
@@ -57,7 +54,6 @@ class _MainScreenState extends State<MainScreen> {
       })
       ..setNavigationDelegate(NavigationDelegate(
         onPageStarted: (url) {
-          // الحقن المبكر جداً لاصطياد الطلبات السريعة
           _injectOmniRadar(); 
         },
         onPageFinished: (url) {
@@ -68,7 +64,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ==========================================
-  // محرك الرادار الشامل (The Omni-Radar Engine)
+  // محرك الرادار الشامل مع مفكك الشفرات (Auto-Decoder)
   // ==========================================
   void _injectOmniRadar() {
     if (!_optOmniSniffer) return;
@@ -77,22 +73,52 @@ class _MainScreenState extends State<MainScreen> {
       if(!window.__exhxxOmniHooked){
         window.__exhxxOmniHooked = true;
 
+        // دالة تفكيك الشفرات (URL Decode & JSON Parse) لتجميل العرض
+        function decodeAndFormat(data) {
+           if(!data) return '';
+           if(typeof data !== 'string') return 'Binary/Object';
+           
+           // محاولة فك ترميز الـ URL (تحويل %5B إلى [ وما إلى ذلك)
+           let decoded = data;
+           try { decoded = decodeURIComponent(data.replace(/\\+/g, ' ')); } catch(e) {}
+           
+           // محاولة تحويل البيانات إلى شكل JSON مرتب إذا كانت من نوع Form
+           if(decoded.includes('=')) {
+              let obj = {};
+              decoded.split('&').forEach(pair => {
+                 let parts = pair.split('=');
+                 if(parts.length === 2) obj[parts[0]] = parts[1];
+              });
+              return JSON.stringify(obj, null, 2);
+           }
+           
+           try {
+              return JSON.stringify(JSON.parse(decoded), null, 2);
+           } catch(e) {
+              return decoded.substring(0, 500); 
+           }
+        }
+
         function logTraffic(type, method, url, data) {
-           let payload = data ? "\\n[PAYLOAD]: " + data : "";
+           // تجاهل روابط جوجل أنالتكس لأنها مزعجة وتملأ الشاشة
+           if(url.includes('google-analytics.com') || url.includes('google.com/g/collect')) return;
+
+           let prettyData = decodeAndFormat(data);
+           let payload = data ? "\\n[PAYLOAD]:\\n" + prettyData : "";
            ExhxxLog.postMessage('[' + type + '] [' + method + '] ' + url + payload);
         }
 
-        // 1. اعتراض Fetch API (يستخدم بالرشق الحديث)
+        // 1. اعتراض Fetch API
         const origFetch = window.fetch;
         window.fetch = async function(...args) {
           let url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : 'Unknown URL');
           let method = (args[1] && args[1].method) ? args[1].method : 'GET';
           let body = (args[1] && args[1].body) ? args[1].body : '';
-          logTraffic('FETCH', method, url, typeof body === 'string' ? body.substring(0,200) : 'Binary/Object');
+          logTraffic('FETCH', method, url, body);
           return origFetch.apply(this, args);
         };
 
-        // 2. اعتراض XMLHttpRequest (AJAX القديم)
+        // 2. اعتراض XMLHttpRequest
         const origOpen = XMLHttpRequest.prototype.open;
         const origSend = XMLHttpRequest.prototype.send;
         XMLHttpRequest.prototype.open = function(method, url) {
@@ -101,48 +127,29 @@ class _MainScreenState extends State<MainScreen> {
           origOpen.apply(this, arguments);
         };
         XMLHttpRequest.prototype.send = function(body) {
-          logTraffic('XHR', this._exhxxMethod, this._exhxxUrl, typeof body === 'string' ? body.substring(0,200) : 'Binary/Object');
+          logTraffic('XHR', this._exhxxMethod, this._exhxxUrl, body);
           origSend.apply(this, arguments);
         };
 
-        // 3. اعتراض Forms (النماذج التقليدية للرشق)
+        // 3. اعتراض Forms (النماذج - مثل تسجيل الدخول والرشق)
         document.addEventListener('submit', function(e) {
           if(e.target && e.target.tagName === 'FORM') {
             let formData = new FormData(e.target);
-            let formProps = new URLSearchParams(formData).toString();
-            logTraffic('FORM', e.target.method.toUpperCase(), e.target.action || window.location.href, formProps);
+            let obj = {};
+            formData.forEach((value, key) => { obj[key] = value; });
+            logTraffic('FORM', e.target.method.toUpperCase(), e.target.action || window.location.href, JSON.stringify(obj));
           }
         }, true);
-
-        // 4. اعتراض WebSockets (الاتصال المباشر)
-        const OrigWS = window.WebSocket;
-        window.WebSocket = function(url, protocols) {
-          logTraffic('WEBSOCKET', 'CONNECT', url, '');
-          return new OrigWS(url, protocols);
-        };
-
-        // 5. اعتراض SendBeacon
-        if(navigator.sendBeacon) {
-          const origBeacon = navigator.sendBeacon;
-          navigator.sendBeacon = function(url, data) {
-             logTraffic('BEACON', 'POST', url, typeof data === 'string' ? data.substring(0,200) : 'Blob/Buffer');
-             return origBeacon.apply(this, arguments);
-          };
-        }
       }
     ''');
   }
 
-  // ==========================================
-  // محرك حقن باقي الأدوات
-  // ==========================================
   void _applyEnabledTools() {
-    _injectOmniRadar(); // تأكيد الحقن بعد تحميل الصفحة
+    _injectOmniRadar(); 
 
     if (_optMediaBlocker) {
       _controller.runJavaScript("var s=document.createElement('style');s.innerHTML='img,video,iframe,canvas{display:none !important;} *{background-image:none !important;}';document.head.appendChild(s);");
     }
-
     if (_optConsoleHijack) {
       _controller.runJavaScript('''
         if(!window.__exhxxConsoleHooked) {
@@ -155,7 +162,6 @@ class _MainScreenState extends State<MainScreen> {
         }
       ''');
     }
-
     if (_optUnlockRightClick) {
       _controller.runJavaScript('''
         document.addEventListener('contextmenu', event => event.stopPropagation(), true);
@@ -164,17 +170,14 @@ class _MainScreenState extends State<MainScreen> {
         var s=document.createElement('style');s.innerHTML='*{user-select: auto !important; -webkit-user-select: auto !important;}';document.head.appendChild(s);
       ''');
     }
-
     if (_optAntiDebug) {
       _controller.runJavaScript("console.warn=function(){}; console.error=function(){}; setInterval(()=>{Function.prototype.constructor=function(){};}, 100);");
     }
-
     if (_optAutoScroll) {
       _controller.runJavaScript("if(!window.vtScroller) window.vtScroller = setInterval(()=>window.scrollBy({top:500, behavior:'smooth'}), 800);");
     } else {
       _controller.runJavaScript("if(window.vtScroller) clearInterval(window.vtScroller); window.vtScroller=null;");
     }
-
     if (_optShadowClicker) {
       _controller.runJavaScript('''
         if(!window.vtClicker) window.vtClicker = setInterval(()=>{
@@ -197,9 +200,6 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  // ==========================================
-  // أدوات الأكشن السريع (Quick Actions)
-  // ==========================================
   void _harvestCookies() async {
     final result = await _controller.runJavaScriptReturningResult("document.cookie;");
     setState(() { _logs.add("[DATA] 🍪 COOKIES: \n" + result.toString().replaceAll('"', '')); });
@@ -242,9 +242,6 @@ class _MainScreenState extends State<MainScreen> {
     ));
   }
 
-  // ==========================================
-  // واجهات التطبيق (UI Tabs)
-  // ==========================================
   Widget _buildBrowserTab() {
     return Column(
       children: [
@@ -282,15 +279,13 @@ class _MainScreenState extends State<MainScreen> {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
-        // القسم الأول
         const Text("أنظمة الاستخبارات (Intelligence)", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.cyanAccent)),
         const Divider(color: Colors.white24),
-        SwitchListTile(activeColor: Colors.cyanAccent, title: const Text("📡 الرادار الشامل (Omni-Sniffer)"), subtitle: const Text("يعترض Form, Fetch, XHR, WebSockets"), value: _optOmniSniffer, onChanged: (v){ setState(() { _optOmniSniffer=v; _injectOmniRadar(); });}),
+        SwitchListTile(activeColor: Colors.cyanAccent, title: const Text("📡 الرادار الشامل (Omni-Sniffer)"), subtitle: const Text("يعترض الطلبات ويفك التشفير تلقائياً"), value: _optOmniSniffer, onChanged: (v){ setState(() { _optOmniSniffer=v; _injectOmniRadar(); });}),
         SwitchListTile(activeColor: Colors.cyanAccent, title: const Text("🎙️ مختطف الكونسول (Console Hijack)"), subtitle: const Text("يتجسس على أخطاء ورسائل الموقع السرية"), value: _optConsoleHijack, onChanged: (v){ setState(() { _optConsoleHijack=v; _applyEnabledTools(); });}),
         SwitchListTile(activeColor: Colors.cyanAccent, title: const Text("🔓 فك حظر النسخ (Unlock Copy)"), subtitle: const Text("يلغي حظر الكليك يمين والنسخ بالموقع"), value: _optUnlockRightClick, onChanged: (v){ setState(() { _optUnlockRightClick=v; _applyEnabledTools(); });}),
         
         const SizedBox(height: 20),
-        // القسم الثاني
         const Text("أنظمة التحكم والأتمتة (Control & Automation)", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.amberAccent)),
         const Divider(color: Colors.white24),
         SwitchListTile(activeColor: Colors.amberAccent, title: const Text("🚀 تيربو بلوكر (Media Blocker)"), subtitle: const Text("إخفاء الميديا لزيادة سرعة الموقع 10x"), value: _optMediaBlocker, onChanged: (v){ setState(() { _optMediaBlocker=v; _applyEnabledTools(); });}),
@@ -304,7 +299,6 @@ class _MainScreenState extends State<MainScreen> {
         SwitchListTile(activeColor: Colors.amberAccent, title: const Text("🛡️ قاتل الحمايات (Anti-Debug)"), subtitle: const Text("يمنع الموقع من اكتشاف أدواتك"), value: _optAntiDebug, onChanged: (v){ setState(() { _optAntiDebug=v; _applyEnabledTools(); });}),
 
         const SizedBox(height: 20),
-        // القسم الثالث
         const Text("عمليات السحب النووية (Extraction)", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.pinkAccent)),
         const Divider(color: Colors.white24),
         ListTile(leading: const Icon(Icons.cookie, color: Colors.orange), title: const Text("سحب كل الكوكيز (Harvest Cookies)"), onTap: _harvestCookies),
@@ -350,15 +344,13 @@ class _MainScreenState extends State<MainScreen> {
                 if (_logs[i].startsWith('[FETCH]')) textColor = Colors.greenAccent;
                 else if (_logs[i].startsWith('[XHR]')) textColor = Colors.cyanAccent;
                 else if (_logs[i].startsWith('[FORM]')) textColor = Colors.pinkAccent;
-                else if (_logs[i].startsWith('[WEBSOCKET]')) textColor = Colors.purpleAccent;
-                else if (_logs[i].startsWith('[BEACON]')) textColor = Colors.tealAccent;
                 else if (_logs[i].startsWith('[DATA]')) textColor = Colors.amberAccent;
                 else if (_logs[i].startsWith('[CONSOLE]')) textColor = Colors.yellowAccent;
                 else if (_logs[i].startsWith('[SYSTEM]')) textColor = Colors.redAccent;
 
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  child: SelectableText("> ${_logs[i]}", style: TextStyle(color: textColor, fontFamily: 'monospace', fontSize: 11)),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: SelectableText("> ${_logs[i]}", style: TextStyle(color: textColor, fontFamily: 'monospace', fontSize: 13)),
                 );
               },
             ),
