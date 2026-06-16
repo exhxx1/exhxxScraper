@@ -50,15 +50,73 @@ class _ScraperScreenState extends State<ScraperScreen> {
       ..loadRequest(Uri.parse(targetUrl));
   }
 
+  // روبوت الضغط التلقائي على زر ( ... )
+  Future<void> _autoLoadMore() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('جاري البحث عن زر التحميل والضغط عليه... 🤖')),
+    );
+
+    final String jsClicker = '''
+      (function() {
+        function clickLoadMore(node) {
+          if (node.nodeType === 1) { // ELEMENT_NODE
+            if (node.textContent.trim() === '...') {
+              try { node.click(); return true; } catch(e){}
+            }
+            let children = node.shadowRoot ? node.shadowRoot.childNodes : node.childNodes;
+            for (let i = 0; i < children.length; i++) {
+              if (clickLoadMore(children[i])) return true;
+            }
+          }
+          return false;
+        }
+        return clickLoadMore(document.body);
+      })();
+    ''';
+
+    final Object result = await _controller.runJavaScriptReturningResult(jsClicker);
+    
+    if (result.toString() == 'true') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم ضغط زر (...) بنجاح! انتظر ثواني للتحميل ⏳'), backgroundColor: Colors.orange),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لم يتم العثور على زر (...). قد تكون وصلت للنهاية!'), backgroundColor: Colors.grey),
+      );
+    }
+  }
+
+  // الدالة السحرية المحدثة لاختراق حماية Shadow DOM وسحب الدومينات
   Future<void> _extractAndCopyDomains() async {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('جاري سحب الدومينات، لحظة يا بطل... ⏳')),
+      const SnackBar(content: Text('جاري اختراق الصفحة وسحب الدومينات... 🚀')),
     );
 
     try {
-      final Object result = await _controller.runJavaScriptReturningResult("document.body.innerText;");
+      final String jsDeepExtractor = '''
+        (function() {
+          function getShadowText(node) {
+            let text = '';
+            if (node.nodeType === 3) { // TEXT_NODE
+              text += node.nodeValue + ' ';
+            } else if (node.nodeType === 1) { // ELEMENT_NODE
+              if (node.tagName === 'SCRIPT' || node.tagName === 'STYLE') return '';
+              let children = node.shadowRoot ? node.shadowRoot.childNodes : node.childNodes;
+              for (let i = 0; i < children.length; i++) {
+                text += getShadowText(children[i]);
+              }
+            }
+            return text;
+          }
+          return getShadowText(document.body);
+        })();
+      ''';
+
+      final Object result = await _controller.runJavaScriptReturningResult(jsDeepExtractor);
       String pageText = result.toString();
 
+      // فلترة النصوص بدقة
       RegExp domainRegex = RegExp(r'\b(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}\b');
       Iterable<RegExpMatch> matches = domainRegex.allMatches(pageText);
 
@@ -73,7 +131,7 @@ class _ScraperScreenState extends State<ScraperScreen> {
       if (uniqueDomains.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('لم يتم العثور على دومينات. انزل لأسفل الصفحة لتتحمل.')),
+            const SnackBar(content: Text('لم يتم العثور على دومينات، حاول تحديث الصفحة.'), backgroundColor: Colors.redAccent),
           );
         }
         return;
@@ -85,7 +143,7 @@ class _ScraperScreenState extends State<ScraperScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✅ تم سحب ونسخ ${uniqueDomains.length} دومين بنجاح! 🚀'),
+            content: Text('✅ تم سحب (${uniqueDomains.length}) دومين للحافظة! 🔥'),
             backgroundColor: Colors.teal,
             duration: const Duration(seconds: 4),
           ),
@@ -123,12 +181,30 @@ class _ScraperScreenState extends State<ScraperScreen> {
             const Center(child: CircularProgressIndicator(color: Colors.tealAccent)),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _extractAndCopyDomains,
-        backgroundColor: Colors.tealAccent,
-        foregroundColor: Colors.black,
-        icon: const Icon(Icons.content_copy),
-        label: const Text('سحب الدومينات 🚀', style: TextStyle(fontWeight: FontWeight.bold)),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            FloatingActionButton.extended(
+              heroTag: "btn_load",
+              onPressed: _autoLoadMore,
+              backgroundColor: Colors.orangeAccent,
+              foregroundColor: Colors.black,
+              icon: const Icon(Icons.downloading),
+              label: const Text('تحميل المزيد 🔄', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+            FloatingActionButton.extended(
+              heroTag: "btn_scrape",
+              onPressed: _extractAndCopyDomains,
+              backgroundColor: Colors.tealAccent,
+              foregroundColor: Colors.black,
+              icon: const Icon(Icons.content_copy),
+              label: const Text('سحب الدومينات 🚀', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            ),
+          ],
+        ),
       ),
     );
   }
