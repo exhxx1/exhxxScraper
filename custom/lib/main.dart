@@ -45,11 +45,6 @@ class _MainScreenState extends State<MainScreen> {
   bool _optMediaBlocker = false;
   bool _optAutoScroll = false;
   bool _optShadowClicker = false;
-  bool _optConsoleHijack = false;
-  bool _optSpoofer = false;
-  bool _optAntiDebug = false;
-  bool _optUnlockRightClick = false;
-
   String _currentCookies = "";
 
   @override
@@ -80,7 +75,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ==========================================
-  // النواة: الرادار الشامل (بالبيانات الخام Raw Data)
+  // النواة: الرادار الشامل (صيد הـ Raw + اختطاف הـ Form Response)
   // ==========================================
   void _injectCoreRadar() {
     if (!_optOmniSniffer) return;
@@ -90,7 +85,7 @@ class _MainScreenState extends State<MainScreen> {
         window.__exhxxCoreHooked = true;
 
         function sendToFlutter(type, method, url, payload, response) {
-          if(url.includes('google-analytics') || url.includes('g/collect')) return; // تجاهل تتبع جوجل
+          if(url.includes('google-analytics') || url.includes('g/collect')) return; 
           let fullUrl = url;
           if(url.startsWith('/')) fullUrl = window.location.origin + url;
 
@@ -102,16 +97,35 @@ class _MainScreenState extends State<MainScreen> {
           try { ExhxxLog.postMessage(JSON.stringify(msg)); } catch(e){}
         }
 
-        // 1. صيد النماذج وإرسالها خام (URL Encoded)
-        document.addEventListener('submit', function(e) {
+        // 1. اختطاف النماذج (Forms) لمنع الـ Refresh وسحب الرد (Response) بقوة!
+        document.addEventListener('submit', async function(e) {
           if(e.target && e.target.tagName === 'FORM') {
-            let formData = new FormData(e.target);
-            let formProps = new URLSearchParams(formData).toString(); // سحب البيانات الخام!
-            sendToFlutter('FORM', e.target.method.toUpperCase() || 'POST', e.target.action || window.location.href, formProps, 'Page Reloaded...');
+            e.preventDefault(); // إيقاف الرفرش
+            let form = e.target;
+            let formData = new FormData(form);
+            let formProps = new URLSearchParams(formData).toString(); 
+            
+            sendToFlutter('FORM_REQ', form.method.toUpperCase() || 'POST', form.action || window.location.href, formProps, 'Wait for response...');
+            
+            try {
+               let res = await fetch(form.action || window.location.href, {
+                  method: form.method || 'POST',
+                  body: formProps,
+                  headers: {'Content-Type': 'application/x-www-form-urlencoded'}
+               });
+               let text = await res.text();
+               sendToFlutter('FORM_RES', form.method.toUpperCase(), form.action || window.location.href, formProps, text.substring(0,2500));
+               
+               // تعويض الصفحة بالرد حتى ما يعلق المستخدم
+               document.open(); document.write(text); document.close();
+            } catch(err) {
+               sendToFlutter('FORM_ERR', form.method, form.action, formProps, err.toString());
+               form.submit(); // السماح بالرفرش كحل أخير
+            }
           }
         }, true);
 
-        // 2. صيد Fetch مع الردود
+        // 2. صيد Fetch
         const origFetch = window.fetch;
         window.fetch = async function(...args) {
           let url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : 'Unknown');
@@ -122,18 +136,17 @@ class _MainScreenState extends State<MainScreen> {
             let res = await origFetch.apply(this, args);
             let clone = res.clone();
             clone.text().then(text => {
-              sendToFlutter('FETCH', method, url, typeof body === 'string' ? body : 'BinaryData', text.substring(0,2000));
+              sendToFlutter('FETCH', method, url, typeof body === 'string' ? body : 'Binary', text.substring(0,2500));
             }).catch(e => {
-              sendToFlutter('FETCH', method, url, typeof body === 'string' ? body : 'BinaryData', 'Unreadable');
+              sendToFlutter('FETCH', method, url, 'Binary', 'Unreadable');
             });
             return res;
           } catch(err) {
-             sendToFlutter('FETCH', method, url, typeof body === 'string' ? body : 'BinaryData', 'Error: ' + err.message);
              throw err;
           }
         };
 
-        // 3. صيد XHR مع الردود
+        // 3. صيد XHR
         const origOpen = XMLHttpRequest.prototype.open;
         const origSend = XMLHttpRequest.prototype.send;
         XMLHttpRequest.prototype.open = function(method, url) {
@@ -143,7 +156,7 @@ class _MainScreenState extends State<MainScreen> {
         };
         XMLHttpRequest.prototype.send = function(body) {
           this.addEventListener('load', function() {
-            sendToFlutter('XHR', this._exMethod, this._exUrl, typeof body === 'string' ? body : 'BinaryData', this.responseText ? this.responseText.substring(0,2000) : '');
+            sendToFlutter('XHR', this._exMethod, this._exUrl, typeof body === 'string' ? body : 'Binary', this.responseText ? this.responseText.substring(0,2500) : '');
           });
           origSend.apply(this, arguments);
         };
@@ -153,128 +166,95 @@ class _MainScreenState extends State<MainScreen> {
 
   void _applyAllTools() {
     _injectCoreRadar();
-
     if (_optMediaBlocker) {
-      _controller.runJavaScript("var s=document.createElement('style');s.innerHTML='img,video,iframe,canvas{display:none !important;} *{background-image:none !important;}';document.head.appendChild(s);");
-    }
-    if (_optConsoleHijack) {
-      _controller.runJavaScript('''
-        if(!window.__exhxXConsole) {
-          window.__exhxXConsole = true;
-          const origLog = console.log;
-          console.log = function() {
-            ExhxxLog.postMessage('[CONSOLE] ' + Array.from(arguments).join(' '));
-            origLog.apply(console, arguments);
-          };
-        }
-      ''');
-    }
-    if (_optUnlockRightClick) {
-      _controller.runJavaScript('''
-        document.addEventListener('contextmenu', e => e.stopPropagation(), true);
-        document.addEventListener('selectstart', e => e.stopPropagation(), true);
-        var s=document.createElement('style');s.innerHTML='*{user-select: auto !important; -webkit-user-select: auto !important;}';document.head.appendChild(s);
-      ''');
-    }
-    if (_optAntiDebug) {
-      _controller.runJavaScript("console.warn=function(){}; console.error=function(){};");
-    }
-    if (_optAutoScroll) {
-      _controller.runJavaScript("if(!window.vtSc) window.vtSc = setInterval(()=>window.scrollBy({top:500, behavior:'smooth'}), 800);");
-    } else {
-      _controller.runJavaScript("if(window.vtSc) clearInterval(window.vtSc); window.vtSc=null;");
-    }
-    if (_optShadowClicker) {
-      _controller.runJavaScript('''
-        if(!window.vtClk) window.vtClk = setInterval(()=>{
-          function traverse(n) {
-            let res=[];
-            if(!n) return res;
-            if(n.nodeType===1) res.push(n);
-            if(n.shadowRoot) res.push(...traverse(n.shadowRoot));
-            let c = n.shadowRoot ? n.shadowRoot.childNodes : n.childNodes;
-            if(c) for(let i=0; i<c.length; i++) res.push(...traverse(c[i]));
-            return res;
-          }
-          let all = traverse(document.documentElement);
-          let btns = all.filter(x => (x.tagName==='VT-UI-BUTTON'||x.tagName==='BUTTON') && (x.textContent||'').trim()==='...');
-          if(btns.length>0) { btns[0].scrollIntoView({block:'center'}); setTimeout(()=>btns[0].click(), 200); }
-        }, 1500);
-      ''');
-    } else {
-      _controller.runJavaScript("if(window.vtClk) clearInterval(window.vtClk); window.vtClk=null;");
+      _controller.runJavaScript("var s=document.createElement('style');s.innerHTML='img,video,iframe,canvas{display:none !important;}';document.head.appendChild(s);");
     }
   }
 
   // ==========================================
-  // مولدات الأكواد (Script Generators)
+  // تحويل الـ URL Encoded إلى قاموس Python نظيف (Raw Dictionary)
+  // ==========================================
+  String _formatPayloadForPython(String rawPayload) {
+    if (!rawPayload.contains('=') || !rawPayload.contains('&')) return '"""$rawPayload"""';
+    
+    var parts = rawPayload.split('&');
+    String dict = "{\n";
+    for (var part in parts) {
+      var kv = part.split('=');
+      if (kv.length >= 2) {
+        var key = Uri.decodeComponent(kv[0]);
+        var val = Uri.decodeComponent(kv.sublist(1).join('='));
+        dict += '    "$key": "$val",\n';
+      }
+    }
+    dict += "}";
+    return dict;
+  }
+
+  // ==========================================
+  // مولد سكربت بايثون الاحترافي (Python Scripter)
   // ==========================================
   void _openAdvancedRepeater(NetworkLog log) {
-    TextEditingController urlCtrl = TextEditingController(text: log.url);
-    TextEditingController payloadCtrl = TextEditingController(text: log.payload);
-
+    String rawPythonDict = _formatPayloadForPython(log.payload);
+    
     showModalBottomSheet(
-      context: context, isScrollControlled: true, backgroundColor: const Color(0xFF151515),
+      context: context, isScrollControlled: true, backgroundColor: const Color(0xFF111111),
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom, left: 16, right: 16, top: 16),
         child: Column(
           mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("تعديل واستخراج الطلبات 🚀", style: TextStyle(fontSize: 18, color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
+            const Text("تصدير السكربت 🚀", style: TextStyle(fontSize: 18, color: Colors.cyanAccent, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
-            TextField(controller: urlCtrl, style: const TextStyle(fontSize: 12, color: Colors.white), decoration: const InputDecoration(labelText: "الرابط (URL)", border: OutlineInputBorder())),
-            const SizedBox(height: 10),
-            TextField(controller: payloadCtrl, maxLines: 4, style: const TextStyle(fontSize: 12, color: Colors.amberAccent), decoration: const InputDecoration(labelText: "البيانات (Raw Payload)", border: OutlineInputBorder())),
-            const SizedBox(height: 15),
-            
-            // أزرار توليد الأكواد
-            Wrap(
-              spacing: 10, runSpacing: 10, alignment: WrapAlignment.center,
-              children: [
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blueGrey),
-                  icon: const Icon(Icons.terminal, color: Colors.white), label: const Text("cURL", style: TextStyle(color: Colors.white)),
-                  onPressed: () {
-                    String curl = "curl -X ${log.method} '${urlCtrl.text}' \\\n     -H 'Content-Type: application/x-www-form-urlencoded' \\\n     -H 'Cookie: ${log.cookies}' \\\n     --data-raw '${payloadCtrl.text}'";
-                    Clipboard.setData(ClipboardData(text: curl));
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ تم نسخ كود cURL!")));
-                  },
-                ),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
-                  icon: const Icon(Icons.code, color: Colors.black), label: const Text("Python 🐍", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                  onPressed: () {
-                    // توليد كود بايثون متكامل!
-                    String pyCode = '''
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, minimumSize: const Size(double.infinity, 50)),
+              icon: const Icon(Icons.code, color: Colors.black), label: const Text("نسخ كود Python الخام 🐍", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
+              onPressed: () {
+                String pyCode = '''
 import requests
+import re
 
-url = "${urlCtrl.text}"
-payload = "${payloadCtrl.text}"
+print("⏳ جاري تهيئة الجلسة...")
+session = requests.Session()
+url = "${log.url}"
+
+# 1. الدخول للموقع لسحب الـ Cookies الخاصة بالجلسة (تتخطى الحماية)
+try:
+    res_get = session.get(url)
+    
+    # محاولة سحب التوكن من الـ HTML إن وجد
+    csrf_token = ""
+    match = re.search(r'name="_csrf"\\s+value="([^"]+)"', res_get.text)
+    if not match:
+        match = re.search(r'name="csrf-token"\\s+content="([^"]+)"', res_get.text)
+    
+    if match:
+        csrf_token = match.group(1)
+        print(f"✅ تم سحب التوكن السري: {csrf_token[:15]}...")
+except:
+    pass
+
+# 2. البيانات الخام (مفصلة ونظيفة للتعديل)
+payload = $rawPythonDict
+
+# تحديث التوكن بالقاموس إذا كان موجود
+if '_csrf' in payload and 'csrf_token' in locals() and csrf_token:
+    payload['_csrf'] = csrf_token
+
 headers = {
-  'Content-Type': 'application/x-www-form-urlencoded',
-  'Cookie': '${log.cookies}'
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
 }
 
-response = requests.request("${log.method}", url, headers=headers, data=payload)
-print(response.text)
+print("🚀 جاري إرسال الطلب للسيرفر...")
+response = session.request("${log.method}", url, headers=headers, data=payload)
+
+print("✅ رد السيرفر:")
+print(response.text[:2000])
 ''';
-                    Clipboard.setData(ClipboardData(text: pyCode));
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🐍 تم نسخ كود Python جاهز للتشغيل!")));
-                  },
-                ),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.cyanAccent),
-                  icon: const Icon(Icons.send, color: Colors.black), label: const Text("إرسال من التطبيق", style: TextStyle(color: Colors.black)),
-                  onPressed: () {
-                    String p = payloadCtrl.text.replaceAll("'", "\\'");
-                    String code = "fetch('${urlCtrl.text}', {method: '${log.method}', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: '$p'}).then(r=>r.text()).then(t=>ExhxxLog.postMessage(JSON.stringify({type: 'REPEATER', method: '${log.method}', url: '${urlCtrl.text}', payload: '$p', response: t.substring(0,1000)})));";
-                    _controller.runJavaScript(code);
-                    Navigator.pop(ctx);
-                  },
-                ),
-              ],
+                Clipboard.setData(ClipboardData(text: pyCode));
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🐍 تم نسخ السكربت الخام والمطور!")));
+              },
             ),
             const SizedBox(height: 15),
           ],
@@ -283,9 +263,6 @@ print(response.text)
     );
   }
 
-  // ==========================================
-  // الواجهات (UI)
-  // ==========================================
   Widget _buildBrowserTab() {
     return Column(
       children: [
@@ -301,32 +278,10 @@ print(response.text)
               IconButton(icon: const Icon(Icons.rocket_launch, color: Colors.cyanAccent), onPressed: () {
                 String val = _urlController.text; if(!val.startsWith("http")) val = "https://" + val; _controller.loadRequest(Uri.parse(val));
               }),
-              IconButton(icon: const Icon(Icons.refresh, color: Colors.amberAccent), onPressed: () => _controller.reload()),
             ],
           ),
         ),
         Expanded(child: WebViewWidget(controller: _controller)),
-      ],
-    );
-  }
-
-  Widget _buildToolsTab() {
-    return ListView(
-      padding: const EdgeInsets.all(12),
-      children: [
-        const Text("أنظمة الاستخبارات والأتمتة 🎛️", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.cyanAccent)),
-        const Divider(color: Colors.white24),
-        SwitchListTile(activeColor: Colors.cyanAccent, title: const Text("📡 الرادار الشامل (Omni-Sniffer)"), subtitle: const Text("تشغيل اعتراض الطلبات (Forms, Fetch, XHR)"), value: _optOmniSniffer, onChanged: (v){ setState(() { _optOmniSniffer=v; _applyAllTools(); });}),
-        SwitchListTile(activeColor: Colors.cyanAccent, title: const Text("🎙️ مختطف الكونسول (Console Hijack)"), value: _optConsoleHijack, onChanged: (v){ setState(() { _optConsoleHijack=v; _applyAllTools(); });}),
-        SwitchListTile(activeColor: Colors.cyanAccent, title: const Text("🔓 فك حظر النسخ (Unlock Copy)"), value: _optUnlockRightClick, onChanged: (v){ setState(() { _optUnlockRightClick=v; _applyAllTools(); });}),
-        SwitchListTile(activeColor: Colors.amberAccent, title: const Text("🚀 تيربو بلوكر (Media Blocker)"), value: _optMediaBlocker, onChanged: (v){ setState(() { _optMediaBlocker=v; _applyAllTools(); });}),
-        SwitchListTile(activeColor: Colors.amberAccent, title: const Text("📜 التمرير السريع (Fast Scroll)"), value: _optAutoScroll, onChanged: (v){ setState(() { _optAutoScroll=v; _applyAllTools(); });}),
-        SwitchListTile(activeColor: Colors.amberAccent, title: const Text("🤖 النقار الجذري (Shadow Clicker)"), value: _optShadowClicker, onChanged: (v){ setState(() { _optShadowClicker=v; _applyAllTools(); });}),
-        SwitchListTile(activeColor: Colors.amberAccent, title: const Text("💻 مزيف الجهاز (Desktop Spoofer)"), value: _optSpoofer, onChanged: (v){ 
-          setState(() { _optSpoofer=v; });
-          _controller.setUserAgent(_optSpoofer ? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" : "");
-          _controller.reload();
-        }),
       ],
     );
   }
@@ -339,7 +294,8 @@ print(response.text)
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text("NETWORK RADAR 📡", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1, color: Colors.cyanAccent)),
+              const Text("RAW RADAR 📡", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1, color: Colors.cyanAccent)),
+              Switch(value: _optOmniSniffer, activeColor: Colors.cyanAccent, onChanged: (v){ setState(() { _optOmniSniffer=v; _injectCoreRadar(); });}),
               IconButton(icon: const Icon(Icons.delete_sweep, color: Colors.redAccent), onPressed: () => setState((){ _netLogs.clear(); })),
             ],
           ),
@@ -349,11 +305,10 @@ print(response.text)
             itemCount: _netLogs.length,
             itemBuilder: (ctx, i) {
               var log = _netLogs[i];
-              Color typeColor = log.type == 'FORM' ? Colors.pinkAccent : (log.type == 'FETCH' ? Colors.greenAccent : Colors.cyanAccent);
               return Card(
                 color: Colors.black, margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 child: ExpansionTile(
-                  title: Text("[${log.method}] ${log.url}", style: TextStyle(color: typeColor, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  title: Text("[${log.method}] ${log.url}", style: const TextStyle(color: Colors.cyanAccent, fontSize: 12), maxLines: 1),
                   subtitle: Text("Type: ${log.type}", style: const TextStyle(color: Colors.grey, fontSize: 10)),
                   children: [
                     Container(
@@ -362,15 +317,15 @@ print(response.text)
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text("RAW PAYLOAD:", style: TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 11)),
-                          SelectableText(log.payload.isEmpty ? "None" : log.payload, style: const TextStyle(color: Colors.white, fontSize: 11)),
+                          SelectableText(_formatPayloadForPython(log.payload), style: const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'monospace')),
                           const Divider(color: Colors.white24),
                           const Text("RESPONSE:", style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold, fontSize: 11)),
-                          SelectableText(log.response.isEmpty ? "Pending/None" : log.response, style: const TextStyle(color: Colors.white, fontSize: 11)),
+                          SelectableText(log.response.isEmpty ? "No Response" : log.response, style: const TextStyle(color: Colors.white, fontSize: 11)),
                           const SizedBox(height: 10),
                           Center(
                             child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.cyanAccent, foregroundColor: Colors.black),
-                              icon: const Icon(Icons.settings_ethernet), label: const Text("خيارات التصدير (Python/cURL)"),
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
+                              icon: const Icon(Icons.code), label: const Text("تصدير Python الخام 🐍"),
                               onPressed: () => _openAdvancedRepeater(log),
                             ),
                           )
@@ -387,36 +342,13 @@ print(response.text)
     );
   }
 
-  Widget _buildSysLogsTab() {
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10), color: const Color(0xFF111111), 
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text("SYSTEM CONSOLE 💻", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.yellowAccent)),
-              IconButton(icon: const Icon(Icons.delete_sweep, color: Colors.redAccent), onPressed: () => setState((){ _sysLogs.clear(); })),
-            ]
-          )
-        ),
-        Expanded(
-          child: ListView.builder(
-            itemCount: _sysLogs.length,
-            itemBuilder: (ctx, i) => Padding(padding: const EdgeInsets.all(8), child: SelectableText("> ${_sysLogs[i]}", style: const TextStyle(color: Colors.greenAccent, fontFamily: 'monospace', fontSize: 12))),
-          ),
-        )
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
         child: IndexedStack(
           index: _currentIndex,
-          children: [_buildBrowserTab(), _buildToolsTab(), _buildNetworkTab(), _buildSysLogsTab()],
+          children: [_buildBrowserTab(), _buildNetworkTab()],
         ),
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -424,13 +356,10 @@ print(response.text)
         selectedItemColor: Colors.cyanAccent, 
         unselectedItemColor: Colors.grey[700], 
         backgroundColor: const Color(0xFF111111),
-        type: BottomNavigationBarType.fixed,
         onTap: (idx) => setState(() { _currentIndex = idx; }),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.public), label: "Browser"),
-          BottomNavigationBarItem(icon: Icon(Icons.construction), label: "Tools"),
-          BottomNavigationBarItem(icon: Icon(Icons.radar), label: "Network"),
-          BottomNavigationBarItem(icon: Icon(Icons.terminal), label: "Console"),
+          BottomNavigationBarItem(icon: Icon(Icons.radar), label: "Raw Radar"),
         ],
       ),
     );
