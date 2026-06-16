@@ -1,65 +1,79 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:flutter/services.dart';
 
-void main() => runApp(const SnifferApp());
+void main() => runApp(const CommanderApp());
 
-class SnifferApp extends StatelessWidget {
-  const SnifferApp({super.key});
+class CommanderApp extends StatelessWidget {
+  const CommanderApp({super.key});
   @override
   Widget build(BuildContext context) => MaterialApp(
         debugShowCheckedModeBanner: false,
-        home: const SnifferScreen(),
         theme: ThemeData.dark(),
+        home: const CommanderScreen(),
       );
 }
 
-class SnifferScreen extends StatefulWidget {
-  const SnifferScreen({super.key});
+class CommanderScreen extends StatefulWidget {
+  const CommanderScreen({super.key});
   @override
-  State<SnifferScreen> createState() => _SnifferScreenState();
+  State<CommanderScreen> createState() => _CommanderScreenState();
 }
 
-class _SnifferScreenState extends State<SnifferScreen> {
-  late final WebViewController _controller;
-  List<String> networkLogs = [];
+class _CommanderScreenState extends State<CommanderScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  late WebViewController _webController;
+  TextEditingController _urlController = TextEditingController(text: 'https://www.virustotal.com/gui/domain/tiktokcdn.com/relations');
+  List<String> logs = [];
 
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
+    _tabController = TabController(length: 2, vsync: this);
+    _webController = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onNavigationRequest: (NavigationRequest request) {
-            // حل مشكلة request.method عن طريق استخدام request.url مباشرة
-            setState(() {
-              networkLogs.add("🔗 ${request.url}");
-            });
-            return NavigationDecision.navigate;
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse('https://www.virustotal.com/gui/domain/tiktokcdn.com/relations'));
+      ..setNavigationDelegate(NavigationDelegate(
+        onNavigationRequest: (req) {
+          setState(() { logs.add(req.url); });
+          return NavigationDecision.navigate;
+        },
+      ))
+      ..loadRequest(Uri.parse(_urlController.text));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("EXHXX Sniffer v2 🕵️‍♂️")),
-      body: Column(
+      appBar: AppBar(
+        title: TextField(controller: _urlController, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(hintText: "اكتب الرابط هنا...")),
+        actions: [IconButton(icon: const Icon(Icons.arrow_forward), onPressed: () => _webController.loadRequest(Uri.parse(_urlController.text)))],
+        bottom: TabBar(controller: _tabController, tabs: const [Tab(text: "المتصفح"), Tab(text: "Logs & Copy")]),
+      ),
+      body: TabBarView(
+        controller: _tabController,
         children: [
-          Expanded(flex: 2, child: WebViewWidget(controller: _controller)),
-          Expanded(
-            flex: 1,
-            child: Container(
-              color: Colors.black,
-              child: ListView.builder(
-                itemCount: networkLogs.length,
-                itemBuilder: (context, index) => ListTile(
-                  title: Text(networkLogs[index], style: const TextStyle(fontSize: 10, color: Colors.greenAccent)),
+          WebViewWidget(controller: _webController),
+          Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.tealAccent, foregroundColor: Colors.black),
+                  icon: const Icon(Icons.copy), 
+                  label: const Text("نسخ الكل", style: TextStyle(fontWeight: FontWeight.bold)),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: logs.join('\n')));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ تم نسخ جميع الروابط!")));
+                  },
                 ),
               ),
-            ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: logs.length,
+                  itemBuilder: (context, i) => ListTile(title: Text(logs[i], style: const TextStyle(fontSize: 12, color: Colors.greenAccent))),
+                ),
+              ),
+            ],
           ),
         ],
       ),
