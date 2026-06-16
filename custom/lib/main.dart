@@ -390,7 +390,7 @@ class _MainScreenState extends State<MainScreen> {
       children: [
         const Text("أدوات الاستخبارات والشبكات (الرادار الأساسي) 📡", style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.cyanAccent)),
         const Divider(color: Colors.white24),
-        SwitchListTile(activeColor: Colors.cyanAccent, title: const Text("📡 الرادار الشامل (Omni-Sniffer)"), subtitle: const Text("يسجل عمليات الرائق، الـ Forms والـ API والردود"), value: _optOmniSniffer, onChanged: (v){ setState(() { _optOmniSniffer=v; _injectCoreRadar(); });}),
+        SwitchListTile(activeColor: Colors.cyanAccent, title: const Text("📡 الرادار الشامل (Omni-Sniffer)"), subtitle: const Text("يسجل عمليات الرشق، الـ Forms والـ API والردود"), value: _optOmniSniffer, onChanged: (v){ setState(() { _optOmniSniffer=v; _injectCoreRadar(); });}),
         SwitchListTile(activeColor: Colors.cyanAccent, title: const Text("🎙️ مختطف الكونسول (Console Hijack)"), value: _optConsoleHijack, onChanged: (v){ setState(() { _optConsoleHijack=v; _applyAllTools(); });}),
         SwitchListTile(activeColor: Colors.cyanAccent, title: const Text("🔓 فك حظر النسخ (Unlock Copy)"), value: _optUnlockRightClick, onChanged: (v){ setState(() { _optUnlockRightClick=v; _applyAllTools(); });}),
         
@@ -449,10 +449,10 @@ class _MainScreenState extends State<MainScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text("RAW PAYLOAD (البيانات الخام ملقاة):", style: TextStyle(color: Colors.amberAccent,尊fontWeight: FontWeight.bold, fontSize: 11)),
+                          const Text("RAW PAYLOAD (البيانات الخام):", style: TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 11)),
                           SelectableText(_formatPayloadForPython(log.payload), style: const TextStyle(color: Colors.white, fontSize: 11, fontFamily: 'monospace')),
                           const Divider(color: Colors.white24),
-                          const Text("SERVER RESPONSE (رد السيرفر والرصيد):", style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold, fontSize: 11)),
+                          const Text("SERVER RESPONSE (رد السيرفر):", style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold, fontSize: 11)),
                           SelectableText(log.response, style: const TextStyle(color: Colors.white, fontSize: 11)),
                           const SizedBox(height: 10),
                           Center(
