@@ -1,0 +1,32 @@
+name: Build Exhxx Scraper
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    - uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.19.0'
+    - name: Scaffold & Inject Code 🚀
+      run: |
+        flutter create scraper_app --org com.exhxx
+        cd scraper_app
+        flutter pub add webview_flutter
+        # رفع إصدار الأندرويد ليتوافق مع مكتبة المتصفح
+        sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/' android/app/build.gradle
+        cd ..
+        cp custom/lib/main.dart scraper_app/lib/main.dart
+    - name: Build APK
+      run: |
+        cd scraper_app
+        flutter build apk --release
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: Exhxx-Scraper-App
+        path: scraper_app/build/app/outputs/flutter-apk/app-release.apk
