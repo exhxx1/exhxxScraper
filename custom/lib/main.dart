@@ -40,6 +40,15 @@ class _ScraperScreenState extends State<ScraperScreen> {
     super.initState();
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      // 1. إنشاء جسر التواصل بين JS و Flutter
+      ..addJavaScriptChannel(
+        'ExhxxChannel',
+        onMessageReceived: (JavaScriptMessage message) {
+          if (message.message == 'STOP_BOT') {
+            _stopAutoClickerFromJS();
+          }
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (String url) {
@@ -50,38 +59,56 @@ class _ScraperScreenState extends State<ScraperScreen> {
       ..loadRequest(Uri.parse(targetUrl));
   }
 
-  // دالة تشغيل النقار الذكي والمحسّن
+  // دالة تُستدعى تلقائياً عندما يرسل الجافاسكربت إشارة انتهاء
+  void _stopAutoClickerFromJS() {
+    if (!mounted) return;
+    setState(() { _isAutoClicking = false; });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('🛑 انتهت القائمة بالكامل! النقار طفى نفسه تلقائياً.'), 
+        backgroundColor: Colors.teal,
+        duration: Duration(seconds: 5),
+      ),
+    );
+  }
+
   Future<void> _startAutoClicker() async {
     setState(() { _isAutoClicking = true; });
     
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('🤖 تم تشغيل النقار الذكي! راح ينزل بهدوء ويوقف تلقائياً من يخلص.'),
+        content: Text('🤖 تم تشغيل النقار! راح ينزل ويضغط، ومن يخلص يطفي الزر من كيفه.'),
         backgroundColor: Colors.orange,
         duration: Duration(seconds: 4),
       ),
     );
 
-    // كود جافاسكربت المحسن بناءً على التحليل المعماري
-    final String jsSmartClicker = '''
+    final String jsUltimateClicker = '''
       if (window.vtClicker) clearInterval(window.vtClicker);
       
-      let failCount = 0; // عداد ذكي لاكتشاف نهاية القائمة
-      const MAX_FAILS = 8; // إذا بحث 8 مرات متتالية وما لقى الزر، يطفي نفسه
+      let failCount = 0; 
+      const MAX_FAILS = 8; 
 
       window.vtClicker = setInterval(function() {
-        // 1. التمرير الهادئ (Smooth Scroll) بمقدار أقل لتجنب تجاوز الزر
         window.scrollBy({ top: 400, left: 0, behavior: 'smooth' });
         
-        // 2. دالة المسح الشامل القوية لكل عناصر الصفحة (بما فيها الـ Shadow DOM)
+        // 2. إصلاح مسح الـ Shadow DOM بشكل هندسي دقيق
         function getAllElements(root) {
             let all = [];
             function traverse(node) {
-                if (!node || node.nodeType !== 1) return;
-                all.push(node);
+                if (!node) return;
+                if (node.nodeType === 1) all.push(node); // Elements only
+                
+                // الغوص في الظل
                 if (node.shadowRoot) traverse(node.shadowRoot);
-                let children = node.children || [];
-                for (let i = 0; i < children.length; i++) traverse(children[i]);
+                
+                // الغوص في الأبناء بشكل صحيح (يدعم الـ ShadowRoot والـ Element العادي)
+                let childrenNodes = node.shadowRoot ? node.shadowRoot.childNodes : node.childNodes;
+                if (childrenNodes) {
+                    for (let i = 0; i < childrenNodes.length; i++) {
+                        traverse(childrenNodes[i]);
+                    }
+                }
             }
             traverse(root);
             return all;
@@ -89,7 +116,6 @@ class _ScraperScreenState extends State<ScraperScreen> {
 
         let elements = getAllElements(document.documentElement);
         
-        // البحث عن الزر ضمن جميع العناصر المستخرجة
         let targetBtn = elements.find(n => {
             if (n.tagName === 'VT-UI-BUTTON' || n.tagName === 'BUTTON') {
                 let text = (n.textContent || "").trim();
@@ -100,23 +126,31 @@ class _ScraperScreenState extends State<ScraperScreen> {
             return false;
         });
 
-        // 3. اتخاذ القرار (الضغط أو زيادة العداد)
         if (targetBtn) {
-            targetBtn.click();
-            failCount = 0; // تصفير العداد لأننا لقينا الزر
+            // 3. التوجيه للزر (ScrollIntoView) قبل الضغط لتجنب أخطاء العرض
+            targetBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // تأخير بسيط جداً لضمان وصول التمرير قبل الضغط
+            setTimeout(() => {
+                targetBtn.click();
+            }, 300);
+            
+            failCount = 0; 
         } else {
-            failCount++; // زيادة العداد
+            failCount++; 
             if (failCount >= MAX_FAILS) {
-                // إيقاف الروبوت تلقائياً لعدم وجود الزر لفترة طويلة
                 clearInterval(window.vtClicker);
-                console.log("EXHXX_BOT: Finished all clicks.");
+                // 4. إرسال إشارة عبر الجسر إلى تطبيق Flutter لإيقاف الزر
+                if (window.ExhxxChannel) {
+                    window.ExhxxChannel.postMessage('STOP_BOT');
+                }
             }
         }
 
-      }, 1500); // الانتظار 1.5 ثانية يكفي لتحميل البيانات الجديدة بهدوء
+      }, 1500); 
     ''';
 
-    await _controller.runJavaScript(jsSmartClicker);
+    await _controller.runJavaScript(jsUltimateClicker);
   }
 
   Future<void> _stopAutoClicker() async {
@@ -124,7 +158,7 @@ class _ScraperScreenState extends State<ScraperScreen> {
     await _controller.runJavaScript('if (window.vtClicker) clearInterval(window.vtClicker);');
     
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('🛑 تم إيقاف النقار!'), backgroundColor: Colors.teal),
+      const SnackBar(content: Text('🛑 تم إيقاف النقار يدوياً!'), backgroundColor: Colors.teal),
     );
   }
 
@@ -132,7 +166,7 @@ class _ScraperScreenState extends State<ScraperScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('EXHXX SMART CLICKER 🤖', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        title: const Text('EXHXX ULTIMATE CLICKER 🤖', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         centerTitle: true,
         actions: [
           IconButton(
@@ -159,7 +193,7 @@ class _ScraperScreenState extends State<ScraperScreen> {
         foregroundColor: Colors.black,
         icon: Icon(_isAutoClicking ? Icons.stop : Icons.smart_toy),
         label: Text(
-          _isAutoClicking ? 'إيقاف النقار 🛑' : 'تشغيل النقار 🤖',
+          _isAutoClicking ? 'النقار يعمل.. إيقاف 🛑' : 'تشغيل النقار النهائي 🤖',
           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ),
