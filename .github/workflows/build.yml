@@ -17,8 +17,13 @@ jobs:
         flutter create scraper_app --org com.exhxx
         cd scraper_app
         flutter pub add webview_flutter
-        # رفع إصدار الأندرويد ليتوافق مع مكتبة المتصفح
+        
+        # رفع إصدار الأندرويد
         sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/' android/app/build.gradle
+        
+        # السطر السحري: حقن صلاحية الإنترنت في ملف التصاريح
+        sed -i '/<manifest/a \    <uses-permission android:name="android.permission.INTERNET" />' android/app/src/main/AndroidManifest.xml
+        
         cd ..
         cp custom/lib/main.dart scraper_app/lib/main.dart
     - name: Build APK
