@@ -50,49 +50,54 @@ class _ScraperScreenState extends State<ScraperScreen> {
       ..loadRequest(Uri.parse(targetUrl));
   }
 
-  // دالة تشغيل الروبوت الآلي
+  // دالة تشغيل الروبوت الهجومي
   Future<void> _startAutoLoad() async {
     setState(() { _isAutoLoading = true; });
     
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('🤖 تم تفعيل الروبوت! راح ينزل ويضغط ( ... ) تلقائياً...'),
+        content: Text('🤖 الروبوت الهجومي اشتغل! راح ينزل ويضغط بقوة...'),
         backgroundColor: Colors.orange,
         duration: Duration(seconds: 3),
       ),
     );
 
-    // سكريبت الروبوت: يبحث بالظل (Shadow DOM) ويضغط الزر كل ثانية ونص
-    final String jsAutoClicker = '''
+    // سكريبت الروبوت الجديد: مسح شامل وتمرير تلقائي
+    final String jsAggressiveClicker = '''
       if (window.vtClicker) clearInterval(window.vtClicker);
       window.vtClicker = setInterval(function() {
+        // 1. تمرير الشاشة للأسفل لتحفيز الموقع
+        window.scrollBy(0, 1500);
+        
+        // 2. خوارزمية المسح العميق
         let clicked = false;
-        function walk(node) {
-          if (clicked || !node || node.nodeType !== 1) return;
-          
-          // البحث عن أزرار الموقع الرسمية
-          if (node.tagName === 'VT-UI-BUTTON' || node.tagName === 'BUTTON') {
-              let text = node.textContent.trim();
-              if (text === '...' || text.toLowerCase().includes('load more')) {
-                  node.click();
-                  clicked = true;
-                  // التمرير التلقائي للأسفل لمتابعة التحميل
-                  node.scrollIntoView({behavior: "smooth", block: "center"});
-                  return;
-              }
-          }
-          
-          // الدخول للطبقات المخفية
-          if (node.shadowRoot) walk(node.shadowRoot);
-          for (let i = 0; i < node.children.length; i++) {
-              walk(node.children[i]);
-          }
+        function traverse(node) {
+            if (clicked || !node) return;
+            
+            // اصطياد أي زر يحتوي على النقاط
+            if (node.nodeType === 1 && (node.tagName === 'VT-UI-BUTTON' || node.tagName === 'BUTTON')) {
+                if (node.textContent && node.textContent.includes('...')) {
+                    node.click();
+                    clicked = true;
+                    return;
+                }
+            }
+            
+            // اختراق الظل (Shadow DOM)
+            if (node.shadowRoot) traverse(node.shadowRoot);
+            
+            // البحث في الأبناء
+            if (node.childNodes) {
+                node.childNodes.forEach(child => {
+                    if (child.nodeType === 1) traverse(child);
+                });
+            }
         }
-        walk(document.documentElement);
-      }, 1500); // 1500 مللي ثانية (ثانية ونصف) بين كل ضغطة
+        traverse(document.body);
+      }, 1000); // ينفذ الهجوم كل ثانية
     ''';
 
-    await _controller.runJavaScript(jsAutoClicker);
+    await _controller.runJavaScript(jsAggressiveClicker);
   }
 
   // دالة إيقاف الروبوت
@@ -101,7 +106,7 @@ class _ScraperScreenState extends State<ScraperScreen> {
     await _controller.runJavaScript('if (window.vtClicker) clearInterval(window.vtClicker);');
     
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('🛑 تم إيقاف الروبوت! تكدر تنسخ هسه.'), backgroundColor: Colors.red),
+      const SnackBar(content: Text('🛑 تم إيقاف الروبوت! تكدر تنسخ هسه براحتك.'), backgroundColor: Colors.teal),
     );
   }
 
