@@ -10,11 +10,11 @@ class UltimateCommanderApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'EXHXX Ultimate Commander',
+      title: 'EXHXX Canary Commander',
       theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF0D0D0D),
-        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF1A1A1A)),
-        colorScheme: ColorScheme.dark(primary: Colors.tealAccent, secondary: Colors.orangeAccent),
+        scaffoldBackgroundColor: const Color(0xFF0A0A0A),
+        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF151515)),
+        colorScheme: const ColorScheme.dark(primary: Colors.greenAccent, secondary: Colors.orangeAccent),
       ),
       home: const MainScreen(),
     );
@@ -32,18 +32,17 @@ class _MainScreenState extends State<MainScreen> {
   late final WebViewController _controller;
   final TextEditingController _urlController = TextEditingController(text: 'https://www.virustotal.com/gui/domain/tiktokcdn.com/relations');
   
-  List<String> _logs = [];
+  final List<String> _logs = [];
 
   // ==========================================
   // حالات الأدوات (Tool States)
   // ==========================================
-  bool _optSniffer = false;
+  bool _optCanarySniffer = false;
   bool _optMediaBlocker = false;
   bool _optAutoScroll = false;
-  bool _optAutoClicker = false;
-  bool _optDarkMode = false;
+  bool _optShadowClicker = false;
+  bool _optConsoleHijack = false;
   bool _optSpoofer = false;
-  bool _optAntiDebug = false;
 
   @override
   void initState() {
@@ -62,48 +61,68 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ==========================================
-  // محرك حقن الأدوات (Tool Injection Engine)
+  // محرك الحقن المتقدم (Advanced Injection Engine)
   // ==========================================
   void _applyEnabledTools() {
-    if (_optSniffer) {
+    // 1. نظام HttpCanary (Deep Fetch & XHR Interceptor)
+    if (_optCanarySniffer) {
       _controller.runJavaScript('''
-        if(!window.exhxxSniff){
-          window.exhxxSniff = true;
+        if(!window.exhxxCanaryInstalled){
+          window.exhxxCanaryInstalled = true;
+          
+          // اعتراض XHR
+          const origOpen = XMLHttpRequest.prototype.open;
+          const origSend = XMLHttpRequest.prototype.send;
+          XMLHttpRequest.prototype.open = function(method, url) {
+            this._exhxxMethod = method;
+            this._exhxxUrl = url;
+            origOpen.apply(this, arguments);
+          };
+          XMLHttpRequest.prototype.send = function(body) {
+            ExhxxLog.postMessage('[XHR] [' + this._exhxxMethod + '] ' + this._exhxxUrl);
+            origSend.apply(this, arguments);
+          };
+
+          // اعتراض Fetch
           const origFetch = window.fetch;
           window.fetch = async function() {
-            ExhxxLog.postMessage('🕵️ FETCH: ' + arguments[0]);
+            let url = typeof arguments[0] === 'string' ? arguments[0] : (arguments[0] && arguments[0].url ? arguments[0].url : 'Unknown');
+            let method = (arguments[1] && arguments[1].method) ? arguments[1].method : 'GET';
+            ExhxxLog.postMessage('[FETCH] [' + method + '] ' + url);
             return origFetch.apply(this, arguments);
-          };
-          const origXhr = XMLHttpRequest.prototype.open;
-          XMLHttpRequest.prototype.open = function() {
-            ExhxxLog.postMessage('🕵️ XHR: ' + arguments[1]);
-            origXhr.apply(this, arguments);
           };
         }
       ''');
     }
 
+    // 2. مانع الميديا
     if (_optMediaBlocker) {
       _controller.runJavaScript("var s=document.createElement('style');s.innerHTML='img,video,iframe,canvas{display:none !important;} *{background-image:none !important;}';document.head.appendChild(s);");
     }
 
+    // 3. مختطف الكونسول (يتجسس على المبرمجين)
+    if (_optConsoleHijack) {
+      _controller.runJavaScript('''
+        if(!window.exhxxConsoleHijacked) {
+          window.exhxxConsoleHijacked = true;
+          const origLog = console.log;
+          console.log = function() {
+            ExhxxLog.postMessage('[CONSOLE] ' + Array.from(arguments).join(' '));
+            origLog.apply(console, arguments);
+          };
+        }
+      ''');
+    }
+
+    // 4. التمرير التلقائي
     if (_optAutoScroll) {
       _controller.runJavaScript("if(!window.vtScroller) window.vtScroller = setInterval(()=>window.scrollBy({top:400, behavior:'smooth'}), 1000);");
     } else {
       _controller.runJavaScript("if(window.vtScroller) clearInterval(window.vtScroller); window.vtScroller=null;");
     }
 
-    if (_optDarkMode) {
-      _controller.runJavaScript("document.documentElement.style.filter = 'invert(1) hue-rotate(180deg)'; document.body.style.backgroundColor = '#FFF';");
-    } else {
-      _controller.runJavaScript("document.documentElement.style.filter = '';");
-    }
-
-    if (_optAntiDebug) {
-      _controller.runJavaScript("console.log=function(){}; console.warn=function(){}; console.error=function(){}; setInterval(()=>{Function.prototype.constructor=function(){};}, 100);");
-    }
-
-    if (_optAutoClicker) {
+    // 5. النقار الجذري
+    if (_optShadowClicker) {
       _controller.runJavaScript('''
         if(!window.vtClicker) window.vtClicker = setInterval(()=>{
           function traverse(n) {
@@ -112,7 +131,7 @@ class _MainScreenState extends State<MainScreen> {
             if(n.nodeType===1) res.push(n);
             if(n.shadowRoot) res.push(...traverse(n.shadowRoot));
             let c = n.shadowRoot ? n.shadowRoot.childNodes : n.childNodes;
-            for(let i=0; i<c.length; i++) res.push(...traverse(c[i]));
+            if(c) for(let i=0; i<c.length; i++) res.push(...traverse(c[i]));
             return res;
           }
           let all = traverse(document.documentElement);
@@ -125,51 +144,48 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
+  // ==========================================
+  // أدوات الأكشن السريع (Quick Actions)
+  // ==========================================
   void _harvestCookies() async {
     final result = await _controller.runJavaScriptReturningResult("document.cookie;");
-    setState(() { _logs.add("🍪 COOKIES: \${result.toString()}"); });
-    _currentIndex = 2; // Jump to logs
+    setState(() { _logs.add("[COOKIE] " + result.toString().replaceAll('"', '')); });
+    _currentIndex = 2; 
+  }
+
+  void _extractLiveDOM() async {
+    final result = await _controller.runJavaScriptReturningResult("document.documentElement.outerHTML;");
+    setState(() { _logs.add("[DOM_SOURCE] " + result.toString().substring(0, 500) + "... (تم سحب الكود الحي!)"); });
+    _currentIndex = 2;
   }
 
   void _nukeStorage() async {
     await _controller.clearCache();
     await _controller.clearLocalStorage();
-    setState(() { _logs.add("☢️ تم مسح الكاش وبيانات التخزين بنجاح!"); });
+    setState(() { _logs.add("[SYSTEM] ☢️ تم تدمير الكاش والبيانات! المتصفح الآن نظيف."); });
     _controller.reload();
   }
 
-  void _injectCustomJs() {
-    TextEditingController jsCtrl = TextEditingController();
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: const Text("حقن كود JavaScript"),
-      content: TextField(controller: jsCtrl, maxLines: 5, decoration: const InputDecoration(hintText: "alert('EXHXX!');")),
-      actions: [
-        TextButton(onPressed: ()=>Navigator.pop(ctx), child: const Text("إلغاء")),
-        ElevatedButton(onPressed: (){
-          _controller.runJavaScript(jsCtrl.text);
-          Navigator.pop(ctx);
-        }, child: const Text("حقن 💉"))
-      ],
-    ));
-  }
-
   // ==========================================
-  // تصميم الواجهات (UI Views)
+  // واجهات التطبيق (UI Tabs)
   // ==========================================
   Widget _buildBrowserTab() {
     return Column(
       children: [
         Container(
-          color: const Color(0xFF1A1A1A), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          color: const Color(0xFF151515), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
           child: Row(
             children: [
               Expanded(child: TextField(
-                controller: _urlController, style: const TextStyle(fontSize: 14),
-                // تم إصلاح OutlineBorder إلى OutlineInputBorder
-                decoration: InputDecoration(contentPadding: const EdgeInsets.symmetric(horizontal: 15), hintText: "Enter URL...", filled: true, fillColor: Colors.black, border: OutlineInputBorder(borderRadius: BorderRadius.circular(30))),
+                controller: _urlController, style: const TextStyle(fontSize: 14, color: Colors.white),
+                decoration: InputDecoration(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 15), hintText: "https://...", 
+                  filled: true, fillColor: Colors.black, 
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none)
+                ),
                 onSubmitted: (val) => _controller.loadRequest(Uri.parse(val)),
               )),
-              IconButton(icon: const Icon(Icons.send, color: Colors.tealAccent), onPressed: () => _controller.loadRequest(Uri.parse(_urlController.text))),
+              IconButton(icon: const Icon(Icons.public, color: Colors.greenAccent), onPressed: () => _controller.loadRequest(Uri.parse(_urlController.text))),
               IconButton(icon: const Icon(Icons.refresh, color: Colors.orangeAccent), onPressed: () => _controller.reload()),
             ],
           ),
@@ -183,25 +199,24 @@ class _MainScreenState extends State<MainScreen> {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
-        const Text("أدوات الأتمتة المتقدمة 🎛️", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.tealAccent)),
-        const Divider(),
-        SwitchListTile(title: const Text("🕵️ صائد الروابط (Network Sniffer)"), subtitle: const Text("يسجل روابط API بصفحة السجلات"), value: _optSniffer, onChanged: (v){ setState(() { _optSniffer=v; _applyEnabledTools(); });}),
-        SwitchListTile(title: const Text("🚀 مانع الميديا (Turbo Blocker)"), subtitle: const Text("يخفي الصور والفيديوهات لتسريع التحميل"), value: _optMediaBlocker, onChanged: (v){ setState(() { _optMediaBlocker=v; _applyEnabledTools(); });}),
-        SwitchListTile(title: const Text("📜 التمرير التلقائي (Auto Scroll)"), subtitle: const Text("ينزل الشاشة تلقائياً باستمرار"), value: _optAutoScroll, onChanged: (v){ setState(() { _optAutoScroll=v; _applyEnabledTools(); });}),
-        SwitchListTile(title: const Text("🤖 النقار الجذري (Shadow Auto-Clicker)"), subtitle: const Text("يخترق الظل ويضغط أزرار (...)"), value: _optAutoClicker, onChanged: (v){ setState(() { _optAutoClicker=v; _applyEnabledTools(); });}),
-        SwitchListTile(title: const Text("🕶️ فارض الوضع الليلي (Dark Mode)"), subtitle: const Text("يقلب ألوان المواقع المزعجة"), value: _optDarkMode, onChanged: (v){ setState(() { _optDarkMode=v; _applyEnabledTools(); });}),
-        SwitchListTile(title: const Text("🛡️ مانع التتبع (Anti-Debug Bypass)"), subtitle: const Text("يمنع المواقع من مراقبة السكربتات"), value: _optAntiDebug, onChanged: (v){ setState(() { _optAntiDebug=v; _applyEnabledTools(); });}),
-        SwitchListTile(title: const Text("💻 مزيف الجهاز (Desktop Spoofer)"), subtitle: const Text("يعرض الموقع ككمبيوتر ويندوز"), value: _optSpoofer, onChanged: (v){ 
+        const Text("أنظمة التجسس والتحكم (Spy & Control) 🎛️", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.greenAccent)),
+        const Divider(color: Colors.white24),
+        SwitchListTile(activeColor: Colors.greenAccent, title: const Text("🕵️ نظام HttpCanary المصغر"), subtitle: const Text("اعتراض كل طلبات الـ API (XHR/Fetch)"), value: _optCanarySniffer, onChanged: (v){ setState(() { _optCanarySniffer=v; _applyEnabledTools(); });}),
+        SwitchListTile(activeColor: Colors.greenAccent, title: const Text("🎙️ مختطف الكونسول (Console Hijack)"), subtitle: const Text("قراءة رسائل المبرمجين المخفية بالموقع"), value: _optConsoleHijack, onChanged: (v){ setState(() { _optConsoleHijack=v; _applyEnabledTools(); });}),
+        SwitchListTile(activeColor: Colors.greenAccent, title: const Text("🚀 مانع الميديا (Turbo Blocker)"), subtitle: const Text("إيقاف الصور/الفيديو لتسريع التصفح"), value: _optMediaBlocker, onChanged: (v){ setState(() { _optMediaBlocker=v; _applyEnabledTools(); });}),
+        SwitchListTile(activeColor: Colors.greenAccent, title: const Text("📜 التمرير التلقائي (Auto Scroll)"), subtitle: const Text("النزول لأسفل لتفعيل Lazy Load"), value: _optAutoScroll, onChanged: (v){ setState(() { _optAutoScroll=v; _applyEnabledTools(); });}),
+        SwitchListTile(activeColor: Colors.greenAccent, title: const Text("🤖 النقار الجذري (Shadow Clicker)"), subtitle: const Text("الضغط التلقائي على أزرار Load More"), value: _optShadowClicker, onChanged: (v){ setState(() { _optShadowClicker=v; _applyEnabledTools(); });}),
+        SwitchListTile(activeColor: Colors.greenAccent, title: const Text("💻 مزيف الهوية (Desktop Spoofer)"), subtitle: const Text("تغيير بصمة الجهاز (User-Agent)"), value: _optSpoofer, onChanged: (v){ 
           setState(() { _optSpoofer=v; });
           _controller.setUserAgent(_optSpoofer ? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" : "");
           _controller.reload();
         }),
         const SizedBox(height: 15),
-        const Text("أدوات التدخل السريع ⚡", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orangeAccent)),
-        const Divider(),
-        ListTile(leading: const Icon(Icons.cookie, color: Colors.brown), title: const Text("سحب الكوكيز (Harvest Cookies)"), onTap: _harvestCookies),
-        ListTile(leading: const Icon(Icons.code, color: Colors.blue), title: const Text("حقن كود مخصص (Inject JS)"), onTap: _injectCustomJs),
-        ListTile(leading: const Icon(Icons.delete_forever, color: Colors.red), title: const Text("المسح النووي (Nuke Storage)"), onTap: _nukeStorage),
+        const Text("أدوات الاستخراج (Extraction Tools) ⚡", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orangeAccent)),
+        const Divider(color: Colors.white24),
+        ListTile(leading: const Icon(Icons.cookie, color: Colors.orangeAccent), title: const Text("سحب الكوكيز (Harvest Cookies)"), onTap: _harvestCookies),
+        ListTile(leading: const Icon(Icons.html, color: Colors.blueAccent), title: const Text("سحب الكود الحي (Live DOM Source)"), onTap: _extractLiveDOM),
+        ListTile(leading: const Icon(Icons.delete_forever, color: Colors.redAccent), title: const Text("المسح النووي (Nuke Storage)"), onTap: _nukeStorage),
       ],
     );
   }
@@ -210,17 +225,22 @@ class _MainScreenState extends State<MainScreen> {
     return Column(
       children: [
         Container(
-          padding: const EdgeInsets.all(8), color: const Color(0xFF111111),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), color: const Color(0xFF151515),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.tealAccent, foregroundColor: Colors.black), icon: const Icon(Icons.copy), label: const Text("نسخ الكل"), onPressed: (){
-                Clipboard.setData(ClipboardData(text: _logs.join('\n')));
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ تم نسخ السجلات!")));
-              }),
-              ElevatedButton.icon(style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white), icon: const Icon(Icons.clear), label: const Text("تنظيف"), onPressed: (){
-                setState((){ _logs.clear(); });
-              }),
+              const Text("TERMINAL LOGS", style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 2, color: Colors.grey)),
+              Row(
+                children: [
+                  IconButton(icon: const Icon(Icons.copy, color: Colors.greenAccent), onPressed: (){
+                    Clipboard.setData(ClipboardData(text: _logs.join('\n')));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ تم نسخ السجلات!")));
+                  }),
+                  IconButton(icon: const Icon(Icons.delete_sweep, color: Colors.redAccent), onPressed: (){
+                    setState((){ _logs.clear(); });
+                  }),
+                ],
+              )
             ],
           ),
         ),
@@ -229,10 +249,20 @@ class _MainScreenState extends State<MainScreen> {
             color: Colors.black,
             child: ListView.builder(
               itemCount: _logs.length,
-              itemBuilder: (ctx, i) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                child: SelectableText(_logs[i], style: const TextStyle(color: Colors.greenAccent, fontFamily: 'monospace', fontSize: 12)),
-              ),
+              itemBuilder: (ctx, i) {
+                // تلوين السجلات حسب نوعها
+                Color textColor = Colors.white;
+                if (_logs[i].startsWith('[FETCH]')) textColor = Colors.greenAccent;
+                else if (_logs[i].startsWith('[XHR]')) textColor = Colors.cyanAccent;
+                else if (_logs[i].startsWith('[COOKIE]')) textColor = Colors.orangeAccent;
+                else if (_logs[i].startsWith('[CONSOLE]')) textColor = Colors.yellowAccent;
+                else if (_logs[i].startsWith('[SYSTEM]')) textColor = Colors.redAccent;
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  child: SelectableText("> \n${_logs[i]}", style: TextStyle(color: textColor, fontFamily: 'monospace', fontSize: 11)),
+                );
+              },
             ),
           ),
         )
@@ -251,14 +281,15 @@ class _MainScreenState extends State<MainScreen> {
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
-        selectedItemColor: Colors.tealAccent,
-        unselectedItemColor: Colors.grey,
-        backgroundColor: const Color(0xFF1A1A1A),
+        selectedItemColor: Colors.greenAccent,
+        unselectedItemColor: Colors.grey[600],
+        backgroundColor: const Color(0xFF151515),
+        type: BottomNavigationBarType.fixed,
         onTap: (idx) => setState(() { _currentIndex = idx; }),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.language), label: "Browser"),
-          BottomNavigationBarItem(icon: Icon(Icons.construction), label: "Tools"),
-          BottomNavigationBarItem(icon: Icon(Icons.terminal), label: "Logs"),
+          BottomNavigationBarItem(icon: Icon(Icons.public), label: "Browser"),
+          BottomNavigationBarItem(icon: Icon(Icons.auto_awesome), label: "Canary Tools"),
+          BottomNavigationBarItem(icon: Icon(Icons.terminal), label: "Terminal"),
         ],
       ),
     );
