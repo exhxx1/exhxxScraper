@@ -31,9 +31,9 @@ class _SnifferScreenState extends State<SnifferScreen> {
       ..setNavigationDelegate(
         NavigationDelegate(
           onNavigationRequest: (NavigationRequest request) {
-            // هنا نصيد الرابط (Sniffing)
+            // حل مشكلة request.method عن طريق استخدام request.url مباشرة
             setState(() {
-              networkLogs.add("🔗 ${request.method.name.toUpperCase()}: ${request.url}");
+              networkLogs.add("🔗 ${request.url}");
             });
             return NavigationDecision.navigate;
           },
@@ -45,11 +45,12 @@ class _SnifferScreenState extends State<SnifferScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("EXHXX Sniffer 🕵️‍♂️")),
+      appBar: AppBar(title: const Text("EXHXX Sniffer v2 🕵️‍♂️")),
       body: Column(
         children: [
-          Expanded(child: WebViewWidget(controller: _controller)),
+          Expanded(flex: 2, child: WebViewWidget(controller: _controller)),
           Expanded(
+            flex: 1,
             child: Container(
               color: Colors.black,
               child: ListView.builder(
