@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
-import 'package:flutter/services.dart';
 import 'dart:convert';
 
 void main() => runApp(const Exhxx78App());
@@ -30,13 +29,13 @@ class GameMapScreen extends StatefulWidget {
 
 class _GameMapScreenState extends State<GameMapScreen> {
   late final WebViewController _controller;
-  String _currentLat = "36.20630"; // إحداثيات أربيل كمثال افتراضي
+  String _currentLat = "36.20630"; 
   String _currentLng = "44.00890";
-  String _activeMode = "hybrid"; // الوضع الافتراضي: بيوت حقيقية
+  String _activeMode = "hybrid"; 
   
   bool _realTowersEnabled = false;
 
-  final String _telegramLink = "https://t.me/Exhxx_channel"; // ضع معرف قناتك هنا
+  final String _telegramLink = "https://t.me/Exhxx_channel"; 
 
   final String _mapHtml = '''
   <!DOCTYPE html>
@@ -52,7 +51,6 @@ class _GameMapScreenState extends State<GameMapScreen> {
       .radar-mode { filter: sepia(1) hue-rotate(90deg) saturate(3) brightness(0.8) contrast(1.2) !important; }
       .leaflet-control-container { display: none; } 
       
-      /* تصميم أيقونة الأبراج الحقيقية (خضراء مشعة) */
       .real-tower-icon { font-size: 26px; filter: drop-shadow(0 0 12px #00FF00); animation: pulseGreen 1.5s infinite; }
       @keyframes pulseGreen { 0% {transform: scale(1);} 50% {transform: scale(1.3);} 100% {transform: scale(1);} }
     </style>
@@ -63,7 +61,7 @@ class _GameMapScreenState extends State<GameMapScreen> {
       var map = L.map('map', {zoomControl: false, attributionControl: false}).setView([36.2063, 44.0089], 14);
       
       var layers = {
-        'hybrid': L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 20 }), // بيوت حقيقية مع الشوارع
+        'hybrid': L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', { maxZoom: 20 }), 
         'satellite': L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
         'dark': L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 })
       };
@@ -71,7 +69,6 @@ class _GameMapScreenState extends State<GameMapScreen> {
       var currentLayer = layers['hybrid'];
       currentLayer.addTo(map);
 
-      // --- نظام سحب الأبراج الحقيقية 100% (Overpass API) ---
       var realTowersLayer = L.layerGroup();
       
       window.fetchRealTowers = async function(state) {
@@ -83,29 +80,36 @@ class _GameMapScreenState extends State<GameMapScreen> {
          map.addLayer(realTowersLayer);
          let center = map.getCenter();
          
-         // استعلام Overpass لسحب الأبراج والهوائيات في نطاق 5 كم
-         let query = '[out:json];(node["man_made"="mast"](around:5000,'+center.lat+','+center.lng+');node["telecom"="antenna"](around:5000,'+center.lat+','+center.lng+');node["tower:type"="communication"](around:5000,'+center.lat+','+center.lng+'););out;';
-         let url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
+         // استعلام ذكي (POST) يتخطى الحظر، بنطاق 3 كم لسرعة الاستجابة
+         let query = '[out:json][timeout:15];(node["man_made"="mast"](around:3000,'+center.lat+','+center.lng+');node["telecom"="antenna"](around:3000,'+center.lat+','+center.lng+');node["tower:type"="communication"](around:3000,'+center.lat+','+center.lng+'););out;';
          
-         if(window.ExhxxMap) window.ExhxxMap.postMessage(JSON.stringify({msg: "⏳ جاري الاتصال بالقمر الصناعي لسحب الأبراج الحقيقية..."}));
+         if(window.ExhxxMap) window.ExhxxMap.postMessage(JSON.stringify({msg: "⏳ جاري اختراق السيرفرات لسحب مواقع الأبراج الحقيقية..."}));
          
          try {
-             let res = await fetch(url);
+             // استخدام طريقة POST لتخطي حظر الـ CORS والـ VPN
+             let res = await fetch('https://overpass-api.de/api/interpreter', {
+                 method: 'POST',
+                 body: 'data=' + encodeURIComponent(query),
+                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+             });
+             
+             if (!res.ok) throw new Error("Server Block");
+             
              let data = await res.json();
              realTowersLayer.clearLayers();
              
              if(data.elements.length === 0) {
-                if(window.ExhxxMap) window.ExhxxMap.postMessage(JSON.stringify({msg: "⚠️ لا توجد أبراج مسجلة في هذا النطاق (5 كم)"}));
+                if(window.ExhxxMap) window.ExhxxMap.postMessage(JSON.stringify({msg: "⚠️ لا توجد أبراج مسجلة في هذا النطاق"}));
              } else {
                 data.elements.forEach(el => {
                    let icon = L.divIcon({className: 'real-tower-icon', html: '📡', iconSize: [26,26]});
                    let marker = L.marker([el.lat, el.lon], {icon: icon}).bindPopup("<b style='color:green;'>برج اتصالات حقيقي</b><br>ID: " + el.id);
                    realTowersLayer.addLayer(marker);
                 });
-                if(window.ExhxxMap) window.ExhxxMap.postMessage(JSON.stringify({msg: "✅ تم رصد " + data.elements.length + " أبراج حقيقية بنجاح!"}));
+                if(window.ExhxxMap) window.ExhxxMap.postMessage(JSON.stringify({msg: "✅ تم رصد " + data.elements.length + " أبراج بنجاح!"}));
              }
          } catch(e) {
-             if(window.ExhxxMap) window.ExhxxMap.postMessage(JSON.stringify({msg: "❌ خطأ في الاتصال بالسيرفر العالمي"}));
+             if(window.ExhxxMap) window.ExhxxMap.postMessage(JSON.stringify({msg: "❌ السيرفر مشغول أو يحظر الـ VPN، حاول مجدداً"}));
          }
       };
 
@@ -136,12 +140,13 @@ class _GameMapScreenState extends State<GameMapScreen> {
       ..addJavaScriptChannel('ExhxxMap', onMessageReceived: (msg) {
         var data = jsonDecode(msg.message);
         if (data['msg'] != null) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['msg'], style: const TextStyle(fontWeight: FontWeight.bold)), backgroundColor: const Color(0xFF030A05), duration: const Duration(seconds: 3)));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(data['msg'], style: const TextStyle(fontWeight: FontWeight.bold)), backgroundColor: const Color(0xFF030A05), duration: const Duration(seconds: 4)));
         } else {
           setState(() { _currentLat = data['lat'].toStringAsFixed(5); _currentLng = data['lng'].toStringAsFixed(5); });
         }
       })
-      ..loadHtmlString(_mapHtml);
+      // إضافة baseUrl وهمي حتى يسمح نظام الأندرويد بالاتصال الخارجي بدون حظر CORS
+      ..loadHtmlString(_mapHtml, baseUrl: "https://overpass-api.de"); 
   }
 
   void _openLayersMenu() {
@@ -188,7 +193,6 @@ class _GameMapScreenState extends State<GameMapScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // الشريط العلوي (الحقوق والقناة)
                 Padding(
                   padding: const EdgeInsets.all(10.0),
                   child: Container(
@@ -214,8 +218,6 @@ class _GameMapScreenState extends State<GameMapScreen> {
                     ),
                   ),
                 ),
-                
-                // الشريط السفلي (الأبراج والـ GPS)
                 Padding(
                   padding: const EdgeInsets.all(15.0),
                   child: Row(
