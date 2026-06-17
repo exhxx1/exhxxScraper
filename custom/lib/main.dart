@@ -11,7 +11,7 @@ class ExhxxGlobalStandardApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'EXHXX Global Pro',
+      title: 'EXHXX Level MAX',
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: const Color(0xFF0A0E17), 
         appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF0F1423), elevation: 0),
@@ -25,7 +25,6 @@ class ExhxxGlobalStandardApp extends StatelessWidget {
   }
 }
 
-// نموذج موحد للبيانات (يجمع الطلبات، الردود، والكونسول)
 class UnifiedLog {
   final String id, category, method, urlOrTitle, payload, response;
   final DateTime timestamp;
@@ -47,10 +46,7 @@ class _MainScreenState extends State<MainScreen> {
   final List<UnifiedLog> _vaultPayloads = [];
   final Map<String, String> _vaultSessions = {};
 
-  // فلاتر مركز الاستخبارات
   String _activeFilter = 'الكل'; 
-
-  // إعدادات المتصفح المتقدمة
   bool _optOmniSniffer = true;
   String _userAgent = "default";
 
@@ -87,9 +83,6 @@ class _MainScreenState extends State<MainScreen> {
       ..loadRequest(Uri.parse(_urlController.text));
   }
 
-  // ==========================================
-  // النواة المدمجة (الرادار والكونسول معاً)
-  // ==========================================
   void _injectCoreRadar() {
     if (!_optOmniSniffer) return;
     _controller.runJavaScript(r'''
@@ -102,13 +95,11 @@ class _MainScreenState extends State<MainScreen> {
           try { ExhxxLog.postMessage(JSON.stringify({id: id, category: category, method: method, url: fullUrl, payload: payload ? String(payload) : '', response: response ? String(response) : ''})); } catch(e){}
         }
 
-        // 1. اختطاف الكونسول المدمج
         const origLog = console.log; const origWarn = console.warn; const origErr = console.error;
         console.log = function(...args) { sendLog('log_'+Date.now(), 'CONSOLE', 'INFO', 'Console Log', args.join(' '), ''); origLog.apply(console, args); };
         console.warn = function(...args) { sendLog('warn_'+Date.now(), 'CONSOLE', 'WARN', 'Console Warning', args.join(' '), ''); origWarn.apply(console, args); };
         console.error = function(...args) { sendLog('err_'+Date.now(), 'CONSOLE', 'ERROR', 'Console Error', args.join(' '), ''); origErr.apply(console, args); };
 
-        // 2. اختطاف النماذج (Forms)
         document.addEventListener('submit', async function(e) {
           if(e.target && e.target.tagName === 'FORM') {
             e.preventDefault(); 
@@ -125,7 +116,6 @@ class _MainScreenState extends State<MainScreen> {
           }
         }, true);
 
-        // 3. اختطاف Fetch & XHR
         const origFetch = window.fetch;
         window.fetch = async function(...args) {
           let url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : 'Unknown');
@@ -152,23 +142,20 @@ class _MainScreenState extends State<MainScreen> {
     ''');
   }
 
-  // ==========================================
-  // محرك تنفيذ الأدوات (Tool Execution Engine)
-  // ==========================================
   void _runTool(String name, String script, {bool notify = true}) async {
     final res = await _controller.runJavaScriptReturningResult(script);
     String resultStr = res.toString().replaceAll('"', '').trim();
-    if (resultStr.isEmpty || resultStr == 'null') resultStr = "لم يتم العثور على نتائج أو تم التنفيذ بصمت.";
+    if (resultStr.isEmpty || resultStr == 'null') resultStr = "تم التنفيذ أو لم يتم العثور على بيانات.";
     
-    // إضافة النتيجة لمركز الاستخبارات كـ System Log
     setState(() {
       _unifiedLogs.insert(0, UnifiedLog(
         id: 'tool_${DateTime.now().millisecondsSinceEpoch}', category: 'SYSTEM', method: 'TOOL', 
-        urlOrTitle: 'أداة: $name', payload: 'تم استدعاء السكربت', response: resultStr, timestamp: DateTime.now()
+        urlOrTitle: 'أداة: $name', payload: 'تم استدعاء السكربت بنجاح', response: resultStr, timestamp: DateTime.now()
       ));
     });
     
     if(notify) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ اكتملت: $name", style: const TextStyle(color: Colors.white)), backgroundColor: const Color(0xFF00E5FF)));
+    setState(() { _activeFilter = 'سحب وأدوات'; _currentIndex = 1; }); // الانتقال للرادار لرؤية النتيجة
   }
 
   String _formatPayload(String raw) {
@@ -182,7 +169,7 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ==========================================
-  // واجهة مركز الاستخبارات الموحد (Intelligence Hub)
+  // واجهة مركز الاستخبارات (Intelligence Hub)
   // ==========================================
   Widget _buildIntelligenceHub() {
     List<UnifiedLog> filteredLogs = _unifiedLogs.where((log) {
@@ -273,41 +260,59 @@ class _MainScreenState extends State<MainScreen> {
   }
 
   // ==========================================
-  // واجهة الترسانة الاحترافية (Professional Arsenal Grid)
+  // ترسانة الإمبراطور (الـ 25 أداة المطورة MAX)
   // ==========================================
   Widget _buildToolsArsenal() {
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
-        _buildCategoryHeader("🛠️ أدوات الاستخراج العميقة (Extraction)"),
+        _buildCategoryHeader("🛠️ استخراج وسحب البيانات (Data Extraction)"),
         _buildToolGrid([
           _ToolItem("سحب توكنات JWT", Icons.key, Colors.amber, () => _runTool("سحب JWT", "Array.from(document.body.innerText.matchAll(/ey[A-Za-z0-9-_=]+\\.[A-Za-z0-9-_=]+\\.?[A-Za-z0-9-_.+/=]*/g)).join('\\n');")),
           _ToolItem("سحب الإيميلات", Icons.email, Colors.blueAccent, () => _runTool("سحب الإيميلات", "Array.from(document.body.innerText.matchAll(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\\.[a-zA-Z0-9_-]+)/gi)).join('\\n');")),
-          _ToolItem("سحب أرقام الهواتف", Icons.phone, Colors.greenAccent, () => _runTool("سحب الأرقام", "Array.from(document.body.innerText.matchAll(/(?:\\+?\\d{1,3}[- ]?)?\\(?\\d{3}\\)?[- ]?\\d{3}[- ]?\\d{4}/g)).join('\\n');")),
-          _ToolItem("استخراج الحقول المخفية (CSRF)", Icons.visibility_off, Colors.redAccent, () => _runTool("الحقول المخفية", "Array.from(document.querySelectorAll('input[type=\"hidden\"]')).map(i => i.name + ' = ' + i.value).join('\\n');")),
+          _ToolItem("سحب الأرقام", Icons.phone, Colors.greenAccent, () => _runTool("سحب الأرقام", "Array.from(document.body.innerText.matchAll(/(?:\\+?\\d{1,3}[- ]?)?\\(?\\d{3}\\)?[- ]?\\d{3}[- ]?\\d{4}/g)).join('\\n');")),
+          _ToolItem("سحب CSRF المخفي", Icons.visibility_off, Colors.redAccent, () => _runTool("الحقول المخفية", "Array.from(document.querySelectorAll('input[type=\"hidden\"]')).map(i => i.name + ' = ' + i.value).join('\\n');")),
           _ToolItem("سحب الروابط", Icons.link, Colors.cyan, () => _runTool("سحب الروابط", "Array.from(document.querySelectorAll('a')).map(a => a.href).join('\\n');")),
           _ToolItem("سحب الصور", Icons.image, Colors.pinkAccent, () => _runTool("سحب الصور", "Array.from(document.querySelectorAll('img')).map(i => i.src).join('\\n');")),
+          _ToolItem("سحب ملفات JS", Icons.javascript, Colors.yellow, () => _runTool("ملفات JS", "Array.from(document.scripts).map(s=>s.src).filter(Boolean).join('\\n');")),
+          _ToolItem("سحب بيانات JSON", Icons.data_object, Colors.lightBlue, () => _runTool("بيانات JSON", "Array.from(document.scripts).filter(s=>s.type.includes('json')).map(s=>s.innerText).join('\\n\\n');")),
+          _ToolItem("سحب الكوكيز", Icons.cookie, Colors.orange, () => _runTool("الكوكيز", "document.cookie;")),
         ]),
 
-        _buildCategoryHeader("🤖 أدوات الأتمتة والتحكم (Automation)"),
+        _buildCategoryHeader("🪄 التلاعب بالواجهة وتخطي الحمايات (DOM & Bypass)"),
         _buildToolGrid([
-          _ToolItem("تعبئة النماذج تلقائياً", Icons.edit_document, Colors.tealAccent, () => _runTool("تعبئة", "document.querySelectorAll('input').forEach(i=>{if(i.type==='text'||i.type==='email')i.value='admin@test.com';if(i.type==='password')i.value='123456789';}); 'تم تعبئة الحقول';")),
-          _ToolItem("نقار الظل السريع", Icons.touch_app, Colors.orangeAccent, () => _runTool("نقار الظل", "setInterval(()=>{let b=Array.from(document.querySelectorAll('*')).find(x=>x.shadowRoot); if(b) {let btn=b.shadowRoot.querySelector('button'); if(btn) btn.click();}}, 1000); 'تم تفعيل النقار';")),
-          _ToolItem("التمرير اللانهائي", Icons.swipe_down, Colors.purpleAccent, () => _runTool("التمرير", "window.scrInt = setInterval(()=>window.scrollBy(0, 500), 1000); 'تم تفعيل التمرير';")),
-          _ToolItem("إيقاف التمرير", Icons.stop_circle, Colors.red, () => _runTool("إيقاف", "clearInterval(window.scrInt); 'تم الإيقاف';")),
-          _ToolItem("فك حظر النسخ", Icons.lock_open, Colors.lightGreenAccent, () => _runTool("فك الحظر", "document.oncontextmenu=null; document.onselectstart=null; 'تم فك الحظر';")),
-          _ToolItem("تدمير CSS (تسريع)", Icons.flash_on, Colors.yellowAccent, () => _runTool("تدمير CSS", "document.querySelectorAll('style, link[rel=\"stylesheet\"]').forEach(e=>e.remove()); 'تم تدمير التصميم للتسريع';")),
+          _ToolItem("وضع التعديل الحر", Icons.edit, Colors.teal, () => _runTool("التعديل الحر", "document.designMode = document.designMode === 'on' ? 'off' : 'on'; 'وضع التعديل: ' + document.designMode;")),
+          _ToolItem("كشف الباسوردات", Icons.password, Colors.red, () => _runTool("كشف المرور", "document.querySelectorAll('input[type=\"password\"]').forEach(i=>i.type='text'); 'تم إظهار الكلمات المخفية';")),
+          _ToolItem("إظهار المخفي", Icons.visibility, Colors.green, () => _runTool("إظهار المخفي", "document.querySelectorAll('*').forEach(e=>{if(getComputedStyle(e).display==='none')e.style.display='block';}); 'تم إظهار كل شيء';")),
+          _ToolItem("إبادة النوافذ", Icons.block, Colors.deepOrange, () => _runTool("إبادة النوافذ", "document.querySelectorAll('*').forEach(e=>{let z=getComputedStyle(e).zIndex;if(z!=='auto'&&parseInt(z)>1000)e.remove();}); 'تم مسح النوافذ المنبثقة';")),
+          _ToolItem("رسم حدود العناصر", Icons.border_outer, Colors.cyan, () => _runTool("حدود العناصر", "var s=document.createElement('style');s.innerHTML='*{outline:1px solid red!important}';document.head.appendChild(s); 'تم رسم الحدود لكشف الـ Divs';")),
+          _ToolItem("تدمير CSS", Icons.flash_off, Colors.yellowAccent, () => _runTool("تدمير التصميم", "document.querySelectorAll('style,link[rel=\"stylesheet\"]').forEach(e=>e.remove()); 'تم تدمير التصميم للتسريع';")),
+          _ToolItem("إيقاف المؤقتات", Icons.timer_off, Colors.pink, () => _runTool("إيقاف المؤقتات", "for(let i=0;i<10000;i++){clearTimeout(i);clearInterval(i);} 'تم إيقاف مؤقتات الانتظار';")),
+          _ToolItem("تسريع الفيديو x16", Icons.speed, Colors.lightGreen, () => _runTool("تسريع الفيديو", "document.querySelectorAll('video').forEach(v=>v.playbackRate=16); 'تم تسريع الفيديوهات';")),
+          _ToolItem("فك حظر النسخ", Icons.lock_open, Colors.lightGreenAccent, () => _runTool("فك الحظر", "document.oncontextmenu=null; document.onselectstart=null; document.oncopy=null; 'تم فك حظر النسخ واللصق';")),
         ]),
 
-        _buildCategoryHeader("🛡️ التخفي وحقن المكتبات (Stealth & Inject)"),
+        _buildCategoryHeader("🤖 الأتمتة السريعة (Automation)"),
         _buildToolGrid([
-          _ToolItem("تزييف البصمة (كمبيوتر)", Icons.desktop_mac, Colors.white, () { setState((){ _userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"; }); _controller.setUserAgent(_userAgent); _controller.reload(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم تحويل البصمة إلى Windows")));}),
-          _ToolItem("تزييف البصمة (ايفون)", Icons.phone_iphone, Colors.grey, () { setState((){ _userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15"; }); _controller.setUserAgent(_userAgent); _controller.reload(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم تحويل البصمة إلى iPhone iOS 16")));}),
-          _ToolItem("حقن مكتبة jQuery", Icons.javascript, Colors.blue, () => _runTool("حقن jQuery", "var s=document.createElement('script');s.src='https://code.jquery.com/jquery-3.6.0.min.js';document.head.appendChild(s); 'تم حقن jQuery بنجاح';")),
-          _ToolItem("حقن مكتبة Axios", Icons.api, Colors.deepPurpleAccent, () => _runTool("حقن Axios", "var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js';document.head.appendChild(s); 'تم حقن Axios بنجاح';")),
-          _ToolItem("مانع التتبع Analytics", Icons.block, Colors.redAccent, () => _runTool("مانع التتبع", "window.ga=function(){}; window.dataLayer=[]; 'تم حظر أدوات التتبع';")),
-          _ToolItem("المسح النووي للكاش", Icons.delete_forever, Colors.red, () async { await _controller.clearCache(); await _controller.clearLocalStorage(); _controller.reload(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("☢️ تم تصفير المتصفح بالكامل")));}),
+          _ToolItem("تعبئة بيانات وهمية", Icons.auto_fix_high, Colors.indigoAccent, () => _runTool("تعبئة وهمية", "document.querySelectorAll('input').forEach(i=>{if(i.type==='email')i.value='test@hack.com';else if(i.type==='password')i.value='ExHxx@123';else if(i.type==='text')i.value='Hacker_1337';}); 'تم تعبئة الحقول باحترافية';")),
+          _ToolItem("نقار أزرار الإرسال", Icons.ads_click, Colors.lime, () => _runTool("نقار الإرسال", "document.querySelectorAll('button[type=\"submit\"], input[type=\"submit\"]').forEach(b=>b.click()); 'تم ضغط جميع أزرار الإرسال';")),
+          _ToolItem("التمرير اللانهائي", Icons.swipe_down, Colors.purpleAccent, () => _runTool("التمرير المستمر", "window.scrInt = setInterval(()=>window.scrollBy(0, 500), 1000); 'تم تفعيل التمرير التلقائي';")),
+          _ToolItem("إيقاف التمرير", Icons.stop_circle, Colors.redAccent, () => _runTool("إيقاف التمرير", "clearInterval(window.scrInt); 'تم الإيقاف';")),
+          _ToolItem("نقر أزرار الظل", Icons.touch_app, Colors.orangeAccent, () => _runTool("نقار الظل", "setInterval(()=>{let b=Array.from(document.querySelectorAll('*')).find(x=>x.shadowRoot); if(b) {let btn=b.shadowRoot.querySelector('button'); if(btn) btn.click();}}, 1000); 'تم تفعيل نقار جذور الظل';")),
+          _ToolItem("حجب الوسائط", Icons.image_not_supported, Colors.grey, () => _runTool("حجب الصور", "var s=document.createElement('style');s.innerHTML='img,video,iframe{display:none!important}';document.head.appendChild(s); 'تم حجب الميديا لتسريع التحميل';")),
         ]),
+
+        _buildCategoryHeader("💉 أنظمة الحقن والتطوير (Injection & Dev)"),
+        _buildToolGrid([
+          _ToolItem("حقن vConsole", Icons.developer_mode, Colors.green, () => _runTool("حقن vConsole", "var s=document.createElement('script');s.src='https://unpkg.com/vconsole/dist/vconsole.min.js';s.onload=()=>new window.VConsole();document.head.appendChild(s); 'تم حقن وحدة تحكم المطورين على الشاشة';")),
+          _ToolItem("حقن مكتبة jQuery", Icons.javascript, Colors.blue, () => _runTool("حقن jQuery", "var s=document.createElement('script');s.src='https://code.jquery.com/jquery-3.6.0.min.js';document.head.appendChild(s); 'تم الحقن';")),
+          _ToolItem("مانع أدوات التتبع", Icons.shield, Colors.redAccent, () => _runTool("حظر التتبع", "window.ga=function(){}; window.dataLayer=[]; 'تم إيقاف تحليلات جوجل وتتبع الموقع';")),
+          _ToolItem("تجميد الصفحة", Icons.ac_unit, Colors.lightBlueAccent, () => _runTool("تجميد العمليات", "setTimeout(()=>{debugger;}, 3000); 'سيتم تجميد الصفحة بعد 3 ثوانٍ (افتح الكونسول)';")),
+          _ToolItem("تزييف بصمة Win", Icons.desktop_mac, Colors.white, () { setState((){ _userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"; }); _controller.setUserAgent(_userAgent); _controller.reload(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم تغيير البصمة إلى ويندوز")));}),
+          _ToolItem("تزييف بصمة iOS", Icons.phone_iphone, Colors.grey, () { setState((){ _userAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)"; }); _controller.setUserAgent(_userAgent); _controller.reload(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم تغيير البصمة إلى ايفون")));}),
+          _ToolItem("تصفير الموقع (Nuke)", Icons.delete_forever, Colors.red, () async { await _controller.clearCache(); await _controller.clearLocalStorage(); _controller.reload(); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("تم تصفير الموقع والكاش!")));}),
+        ]),
+        const SizedBox(height: 40),
       ],
     );
   }
@@ -330,7 +335,7 @@ class _MainScreenState extends State<MainScreen> {
             children: [
               Icon(tools[i].icon, color: tools[i].color, size: 26),
               const SizedBox(height: 8),
-              Text(tools[i].title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 9, color: Colors.white70, fontWeight: FontWeight.bold)),
+              Text(tools[i].title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 10, color: Colors.white70, fontWeight: FontWeight.bold)),
             ],
           ),
         ),
@@ -365,7 +370,7 @@ class _MainScreenState extends State<MainScreen> {
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF141A29), side: const BorderSide(color: Color(0xFF00E5FF))),
                   icon: const Icon(Icons.save, color: Color(0xFF00E5FF), size: 16), label: const Text("حفظ للخزانة", style: TextStyle(color: Color(0xFF00E5FF), fontSize: 10)),
-                  onPressed: () { setState(() { _vaultPayloads.add(log); }); Navigator.pop(ctx); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ تم الحفظ"))); },
+                  onPressed: () { setState(() { _vaultPayloads.add(log); }); Navigator.pop(ctx); ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ تم الحفظ في بنك الثغرات"))); },
                 ),
                 ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
@@ -373,7 +378,7 @@ class _MainScreenState extends State<MainScreen> {
                   onPressed: () {
                     String pyCode = '''import requests\nimport re\n\nurl = "${urlCtrl.text}"\npayload = ${_formatPayload(payloadCtrl.text)}\nheaders = {\n  'Content-Type': 'application/x-www-form-urlencoded',\n  'User-Agent': 'Mozilla/5.0',\n  'Cookie': '$cookies'\n}\n\nsession = requests.Session()\nres = session.get(url)\nmatch = re.search(r'name="_csrf"\\\\s+value="([^"]+)"', res.text)\nif match and '_csrf' in payload: payload['_csrf'] = match.group(1)\n\nprint("🚀 Sending Attack...")\nresponse = session.post(url, headers=headers, data=payload)\nprint(response.text[:1500])''';
                     Clipboard.setData(ClipboardData(text: pyCode)); Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🐍 تم نسخ سكربت بايثون الاحترافي!")));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("🐍 تم نسخ سكربت بايثون الذكي!")));
                   },
                 ),
                 ElevatedButton.icon(
@@ -430,7 +435,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildVaultTab() {
     return Column(
       children: [
-        const Padding(padding: EdgeInsets.all(15), child: Text("الخزانة والأرشيف 🗄️", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF00E5FF)))),
+        const Padding(padding: EdgeInsets.all(15), child: Text("خزانة الحسابات والأرشيف 🗄️", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF00E5FF)))),
         Expanded(
           child: ListView.builder(
             itemCount: _vaultPayloads.length,
@@ -439,7 +444,7 @@ class _MainScreenState extends State<MainScreen> {
               child: ListTile(
                 leading: const Icon(Icons.api, color: Color(0xFF7C4DFF)),
                 title: Text(_vaultPayloads[i].urlOrTitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11)),
-                subtitle: const Text("طلب محفوظ", style: TextStyle(fontSize: 9, color: Colors.white54)),
+                subtitle: const Text("طلب محفوظ ببنك الثغرات", style: TextStyle(fontSize: 9, color: Colors.white54)),
                 trailing: IconButton(icon: const Icon(Icons.play_arrow, color: Color(0xFF00E5FF)), onPressed: () => _openRepeater(_vaultPayloads[i])),
               ),
             ),
@@ -460,8 +465,8 @@ class _MainScreenState extends State<MainScreen> {
         onTap: (idx) => setState(() { _currentIndex = idx; }),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.language), label: "المتصفح"),
-          BottomNavigationBarItem(icon: Icon(Icons.radar), label: "الاستخبارات"),
-          BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: "الترسانة"),
+          BottomNavigationBarItem(icon: Icon(Icons.radar), label: "الرادار"),
+          BottomNavigationBarItem(icon: Icon(Icons.grid_view), label: "الترسانة MAX"),
           BottomNavigationBarItem(icon: Icon(Icons.shield), label: "الخزانة"),
         ],
       ),
