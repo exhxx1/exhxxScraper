@@ -23,33 +23,32 @@ class MainActivity : FlutterActivity() {
         MethodChannel(fe.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "requestOverlayPermission" -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                    try {
                         val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
                         startActivity(intent)
+                    } catch (e: Exception) {
+                        startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
                     }
                     result.success(null)
-                }
-                "checkPermission" -> {
-                    val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Settings.canDrawOverlays(this) else true
-                    result.success(granted)
                 }
                 "startOverlay" -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
-                        result.error("PERMISSION_DENIED", "Permission not granted", null)
-                        return@setMethodCallHandler
+                    // تم إزالة الفحص المزعج هنا للسماح بالتشغيل الإجباري
+                    try {
+                        val serviceIntent = Intent(this, OverlayService::class.java).apply {
+                            putExtra("type", call.argument<String>("type"))
+                            putExtra("color", call.argument<Int>("color"))
+                            putExtra("size", call.argument<Double>("size")?.toFloat())
+                            putExtra("opacity", call.argument<Double>("opacity")?.toFloat())
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(serviceIntent)
+                        } else {
+                            startService(serviceIntent)
+                        }
+                        result.success(null)
+                    } catch (e: Exception) {
+                        result.error("FORCE_ERROR", e.message, null)
                     }
-                    val serviceIntent = Intent(this, OverlayService::class.java).apply {
-                        putExtra("type", call.argument<String>("type"))
-                        putExtra("color", call.argument<Int>("color"))
-                        putExtra("size", call.argument<Double>("size")?.toFloat())
-                        putExtra("opacity", call.argument<Double>("opacity")?.toFloat())
-                    }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                        startForegroundService(serviceIntent)
-                    } else {
-                        startService(serviceIntent)
-                    }
-                    result.success(null)
                 }
                 "stopOverlay" -> {
                     stopService(Intent(this, OverlayService::class.java))
@@ -68,17 +67,20 @@ class OverlayService : Service() {
     override fun onBind(i: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // إجبار الأندرويد على إبقاء الخدمة شغالة (Foreground Service)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channelId = "exhxx_crosshair"
-            val channel = NotificationChannel(channelId, "Crosshair Active", NotificationManager.IMPORTANCE_LOW)
-            getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
-            val notification = android.app.Notification.Builder(this, channelId)
-                .setContentTitle("EXHXX Crosshair")
-                .setContentText("نظام القنص شغال فوق الشاشة 🎯")
-                .setSmallIcon(android.R.drawable.ic_menu_target)
-                .build()
-            startForeground(1, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channelId = "exhxx_crosshair"
+                val channel = NotificationChannel(channelId, "Crosshair Active", NotificationManager.IMPORTANCE_LOW)
+                getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
+                val notification = android.app.Notification.Builder(this, channelId)
+                    .setContentTitle("EXHXX Aim")
+                    .setContentText("نظام القنص شغال فوق اللعبة 🎯")
+                    .setSmallIcon(android.R.drawable.ic_menu_target)
+                    .build()
+                startForeground(1, notification)
+            }
+        } catch (e: Exception) {
+            // تجاهل خطأ الإشعارات إذا كان النظام يقيدها
         }
 
         if (view != null) {
@@ -101,12 +103,16 @@ class OverlayService : Service() {
             PixelFormat.TRANSLUCENT
         )
         
-        wm?.addView(view, params)
+        try {
+            wm?.addView(view, params)
+        } catch (e: Exception) {
+            // صيد أي انهيار محتمل من النظام
+        }
         return START_STICKY
     }
 
     override fun onDestroy() { 
-        view?.let { wm?.removeView(it) }
+        try { view?.let { wm?.removeView(it) } } catch (e: Exception) {}
         super.onDestroy() 
     }
 }

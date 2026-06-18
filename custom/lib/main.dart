@@ -21,11 +21,9 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-// ⚡ إضافة WidgetsBindingObserver لمراقبة رجوع المستخدم من الإعدادات
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
+class _HomeScreenState extends State<HomeScreen> {
   static const _platform = MethodChannel('overlay_channel');
   bool _overlayActive = false;
-  bool _hasPermission = false;
   int _selected = 0;
   Color _color = Colors.red;
   double _size = 60;
@@ -44,46 +42,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     Colors.white, Colors.orange, Colors.purple, Colors.cyan,
   ];
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this); // تفعيل المراقب
-    _checkPermission();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  // ⚡ تتفعل هذي الدالة تلقائياً أول ما ترجع للتطبيق من الإعدادات
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _checkPermission();
-    }
-  }
-
-  Future<void> _checkPermission() async {
-    try {
-      final granted = await _platform.invokeMethod('checkPermission');
-      setState(() => _hasPermission = granted ?? false);
-    } catch (_) {}
-  }
-
-  Future<void> _requestPermission() async {
+  Future<void> _openSettings() async {
     await _platform.invokeMethod('requestOverlayPermission');
   }
 
-  Future<void> _toggleOverlay() async {
-    if (!_hasPermission) {
-      await _requestPermission();
-      return;
-    }
+  // دالة التفعيل الإجباري (Force Start)
+  Future<void> _forceToggleOverlay() async {
     try {
       if (_overlayActive) {
         await _platform.invokeMethod('stopOverlay');
+        setState(() => _overlayActive = false);
       } else {
         await _platform.invokeMethod('startOverlay', {
           'type': _crosshairs[_selected]['type'],
@@ -92,10 +60,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           'fov': _fov,
           'opacity': _opacity,
         });
+        setState(() => _overlayActive = true);
       }
-      setState(() => _overlayActive = !_overlayActive);
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('حدث خطأ، تأكد من الصلاحيات')));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('⚠️ النظام يمنع التشغيل.. تأكد من تفعيل "الظهور فوق التطبيقات" من الإعدادات!'),
+        backgroundColor: Colors.redAccent,
+      ));
     }
   }
 
@@ -107,12 +78,13 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       backgroundColor: const Color(0xFF0D1117),
       appBar: AppBar(
         backgroundColor: const Color(0xFF161B22),
-        title: const Text('🎯 EXHXX Crosshair', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text('🎯 EXHXX Aim VIP', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: Icon(_hasPermission ? Icons.check_circle : Icons.warning, color: _hasPermission ? Colors.green : Colors.orange),
-            onPressed: _requestPermission,
+            icon: const Icon(Icons.settings, color: Colors.amber),
+            tooltip: 'إعدادات الصلاحية (لأجهزة إنفنكس)',
+            onPressed: _openSettings,
           )
         ],
       ),
@@ -121,20 +93,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (!_hasPermission)
-              GestureDetector(
-                onTap: _requestPermission,
-                child: Container(
-                  width: double.infinity, padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(color: Colors.orange.withOpacity(0.15), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange)),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.warning, color: Colors.orange), SizedBox(width: 8),
-                      Expanded(child: Text('اضغط هنا لمنح صلاحية الظهور فوق التطبيقات', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold))),
-                    ],
-                  ),
+            GestureDetector(
+              onTap: _openSettings,
+              child: Container(
+                width: double.infinity, padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(color: Colors.amber.withOpacity(0.15), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.amber)),
+                child: const Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.amber), SizedBox(width: 8),
+                    Expanded(child: Text('إذا لم يظهر الايم، اضغط هنا وفعل الصلاحية يدوياً', style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold))),
+                  ],
                 ),
               ),
+            ),
 
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
@@ -195,19 +166,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             Slider(value: _fov, min: 60, max: 120, divisions: 60, activeColor: Colors.orange, onChanged: (v) => setState(() => _fov = v)),
             const SizedBox(height: 16),
 
+            // زر التفعيل الإجباري
             SizedBox(
               width: double.infinity, height: 55,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: !_hasPermission ? Colors.orange : _overlayActive ? Colors.red : Colors.green,
+                  backgroundColor: _overlayActive ? Colors.red : const Color(0xFF00FF41),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                icon: Icon(!_hasPermission ? Icons.lock_open : _overlayActive ? Icons.stop : Icons.play_arrow, color: Colors.white),
+                icon: Icon(_overlayActive ? Icons.stop : Icons.bolt, color: _overlayActive ? Colors.white : Colors.black),
                 label: Text(
-                  !_hasPermission ? '🔓 امنح الصلاحية أولاً' : _overlayActive ? '⏹ إيقاف الـ Overlay' : '▶ تفعيل فوق الشاشة',
-                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  _overlayActive ? '⏹ إيقاف القنص' : '⚡ تفعيل القنص الإجباري',
+                  style: TextStyle(color: _overlayActive ? Colors.white : Colors.black, fontSize: 16, fontWeight: FontWeight.bold),
                 ),
-                onPressed: _toggleOverlay,
+                onPressed: _forceToggleOverlay,
               ),
             ),
           ],
