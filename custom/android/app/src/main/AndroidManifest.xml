@@ -13,9 +13,6 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
-        
-        <service android:name=".OverlayService" 
-            android:exported="false"
-            android:foregroundServiceType="specialUse" />
+        <service android:name=".OverlayService" android:exported="false" android:foregroundServiceType="specialUse" />
     </application>
 </manifest>
