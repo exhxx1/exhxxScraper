@@ -1,157 +1,255 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
 
-void main() => runApp(const ChannelApp());
+void main() => runApp(const CrosshairApp());
 
-class ChannelApp extends StatelessWidget {
-  const ChannelApp({super.key});
+class CrosshairApp extends StatelessWidget {
+  const CrosshairApp({super.key});
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'قناة حيدر عادل',
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF17212B),
-        colorScheme: const ColorScheme.dark(primary: Color(0xFF2AABEE)),
-      ),
-      home: const ChannelScreen(),
+      home: const CrosshairScreen(),
     );
   }
 }
 
-class ChannelScreen extends StatefulWidget {
-  const ChannelScreen({super.key});
+class CrosshairScreen extends StatefulWidget {
+  const CrosshairScreen({super.key});
   @override
-  State<ChannelScreen> createState() => _ChannelScreenState();
+  State<CrosshairScreen> createState() => _CrosshairScreenState();
 }
 
-class _ChannelScreenState extends State<ChannelScreen> {
-  final List<Map<String, dynamic>> _posts = [
-    {
-      'content': '🔥 العرض الأقوى حالياً\n\nتريد ملف نت مجاني؟ استقرار تام بدون انقطاع!\nالمدة: 6 أشهر كاملة.\nالسعر: 20 فقط!\n\nلضمان استمرار الملفات لا تنسون التفاعل 💙',
-      'time': '10:30 ص',
-      'views': 2600,
-      'reactions': {'❤️': 84, '🔥': 42, '👍': 31},
-    },
-    {
-      'content': '⚡ تحديث ملفات V2Ray\n\nشغال زين وخط آسيا.\nتم رفع أحدث الملفات الحصرية، تعمل ببنك ممتاز للألعاب. جربوها الآن.',
-      'time': '08:15 ص',
-      'views': 1100,
-      'reactions': {'👍': 49, '🔥': 20},
-    },
-    {
-      'content': '🛠️ تطبيق كاشف الأبراج\n\nتم إطلاق التطبيق الجديد.\nتحديد مباشر للأبراج الحقيقية.\nحمل التطبيق من الملف المرفق.',
-      'time': 'أمس',
-      'views': 5400,
-      'reactions': {'❤️': 150, '👏': 88, '🔥': 60},
-    },
+class _CrosshairScreenState extends State<CrosshairScreen> {
+  int _selected = 0;
+  Color _color = Colors.red;
+  double _size = 60;
+
+  final List<Map<String, dynamic>> _crosshairs = [
+    {'name': '🎯 قناصة كلاسيك', 'type': 'sniper'},
+    {'name': '⊕ دائري', 'type': 'circle'},
+    {'name': '✛ ملكي', 'type': 'royal'},
+    {'name': '◎ قناصة مزدوج', 'type': 'double'},
+    {'name': '⊞ شبكة', 'type': 'grid'},
+    {'name': '• نقطة دقيقة', 'type': 'dot'},
+    {'name': '🔫 COD موبايل', 'type': 'cod'},
+    {'name': '❖ الماسة', 'type': 'diamond'},
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF232E3C),
-        leading: const CircleAvatar(
-          backgroundColor: Color(0xFF2AABEE),
-          child: Text('ح', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        ),
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('قناة حيدر عادل', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            Text('67,100 مشترك', style: TextStyle(fontSize: 12, color: Colors.white54)),
-          ],
-        ),
-        actions: [
-          IconButton(icon: const Icon(Icons.search), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),
+        backgroundColor: const Color(0xFF1A1A2E),
+        title: const Text('🎯 Crosshair Overlay', style: TextStyle(color: Colors.white)),
+      ),
+      body: Column(
+        children: [
+          // عرض الـ Crosshair
+          Container(
+            height: 250,
+            color: const Color(0xFF0A0A0A),
+            child: Center(
+              child: CustomPaint(
+                size: Size(_size * 2, _size * 2),
+                painter: CrosshairPainter(
+                  type: _crosshairs[_selected]['type'],
+                  color: _color,
+                  size: _size,
+                ),
+              ),
+            ),
+          ),
+
+          // اختيار النوع
+          SizedBox(
+            height: 80,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.all(10),
+              itemCount: _crosshairs.length,
+              itemBuilder: (context, i) {
+                return GestureDetector(
+                  onTap: () => setState(() => _selected = i),
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _selected == i ? _color : const Color(0xFF1A1A2E),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: _color.withOpacity(0.5)),
+                    ),
+                    child: Text(
+                      _crosshairs[i]['name'],
+                      style: TextStyle(
+                        color: _selected == i ? Colors.black : Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // اختيار اللون
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('🎨 اللون:', style: TextStyle(color: Colors.white, fontSize: 14)),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    Colors.red, Colors.green, Colors.blue,
+                    Colors.yellow, Colors.white, Colors.orange,
+                    Colors.purple, Colors.cyan,
+                  ].map((c) => GestureDetector(
+                    onTap: () => setState(() => _color = c),
+                    child: Container(
+                      width: 35, height: 35,
+                      decoration: BoxDecoration(
+                        color: c,
+                        shape: BoxShape.circle,
+                        border: _color == c
+                            ? Border.all(color: Colors.white, width: 3)
+                            : null,
+                      ),
+                    ),
+                  )).toList(),
+                ),
+                const SizedBox(height: 16),
+                const Text('📏 الحجم:', style: TextStyle(color: Colors.white, fontSize: 14)),
+                Slider(
+                  value: _size,
+                  min: 20, max: 120,
+                  activeColor: _color,
+                  onChanged: (v) => setState(() => _size = v),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: _posts.length,
-        itemBuilder: (context, index) {
-          final post = _posts[index];
-          return _buildPost(post);
-        },
-      ),
     );
+  }
+}
+
+class CrosshairPainter extends CustomPainter {
+  final String type;
+  final Color color;
+  final double size;
+
+  CrosshairPainter({required this.type, required this.color, required this.size});
+
+  @override
+  void paint(Canvas canvas, Size canvasSize) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final paintFill = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    final center = Offset(canvasSize.width / 2, canvasSize.height / 2);
+    final s = size * 0.5;
+
+    switch (type) {
+      case 'sniper':
+        // قناصة كلاسيك مع gap بالمنتصف
+        final gap = s * 0.2;
+        canvas.drawLine(Offset(center.dx - s, center.dy), Offset(center.dx - gap, center.dy), paint);
+        canvas.drawLine(Offset(center.dx + gap, center.dy), Offset(center.dx + s, center.dy), paint);
+        canvas.drawLine(Offset(center.dx, center.dy - s), Offset(center.dx, center.dy - gap), paint);
+        canvas.drawLine(Offset(center.dx, center.dy + gap), Offset(center.dx, center.dy + s), paint);
+        canvas.drawCircle(center, s * 0.8, paint);
+        canvas.drawCircle(center, 2, paintFill);
+        break;
+
+      case 'circle':
+        canvas.drawCircle(center, s * 0.8, paint);
+        canvas.drawLine(Offset(center.dx - s, center.dy), Offset(center.dx + s, center.dy), paint);
+        canvas.drawLine(Offset(center.dx, center.dy - s), Offset(center.dx, center.dy + s), paint);
+        canvas.drawCircle(center, 3, paintFill);
+        break;
+
+      case 'royal':
+        // خطوط مع نقاط على الأطراف
+        canvas.drawLine(Offset(center.dx - s, center.dy), Offset(center.dx + s, center.dy), paint);
+        canvas.drawLine(Offset(center.dx, center.dy - s), Offset(center.dx, center.dy + s), paint);
+        canvas.drawCircle(Offset(center.dx - s, center.dy), 4, paintFill);
+        canvas.drawCircle(Offset(center.dx + s, center.dy), 4, paintFill);
+        canvas.drawCircle(Offset(center.dx, center.dy - s), 4, paintFill);
+        canvas.drawCircle(Offset(center.dx, center.dy + s), 4, paintFill);
+        canvas.drawCircle(center, 3, paintFill);
+        break;
+
+      case 'double':
+        canvas.drawCircle(center, s * 0.9, paint);
+        canvas.drawCircle(center, s * 0.4, paint);
+        final gap2 = s * 0.15;
+        canvas.drawLine(Offset(center.dx - s, center.dy), Offset(center.dx - gap2, center.dy), paint);
+        canvas.drawLine(Offset(center.dx + gap2, center.dy), Offset(center.dx + s, center.dy), paint);
+        canvas.drawLine(Offset(center.dx, center.dy - s), Offset(center.dx, center.dy - gap2), paint);
+        canvas.drawLine(Offset(center.dx, center.dy + gap2), Offset(center.dx, center.dy + s), paint);
+        break;
+
+      case 'grid':
+        for (int i = -2; i <= 2; i++) {
+          canvas.drawLine(
+            Offset(center.dx + i * s * 0.35, center.dy - s),
+            Offset(center.dx + i * s * 0.35, center.dy + s),
+            paint..strokeWidth = i == 0 ? 2.5 : 1,
+          );
+          canvas.drawLine(
+            Offset(center.dx - s, center.dy + i * s * 0.35),
+            Offset(center.dx + s, center.dy + i * s * 0.35),
+            paint..strokeWidth = i == 0 ? 2.5 : 1,
+          );
+        }
+        break;
+
+      case 'dot':
+        canvas.drawCircle(center, 4, paintFill);
+        paint.strokeWidth = 1.5;
+        final gap3 = s * 0.25;
+        canvas.drawLine(Offset(center.dx - s, center.dy), Offset(center.dx - gap3, center.dy), paint);
+        canvas.drawLine(Offset(center.dx + gap3, center.dy), Offset(center.dx + s, center.dy), paint);
+        canvas.drawLine(Offset(center.dx, center.dy - s), Offset(center.dx, center.dy - gap3), paint);
+        canvas.drawLine(Offset(center.dx, center.dy + gap3), Offset(center.dx, center.dy + s), paint);
+        break;
+
+      case 'cod':
+        // COD موبايل ستايل
+        final gap4 = s * 0.18;
+        paint.strokeWidth = 3;
+        canvas.drawLine(Offset(center.dx - s, center.dy), Offset(center.dx - gap4, center.dy), paint);
+        canvas.drawLine(Offset(center.dx + gap4, center.dy), Offset(center.dx + s, center.dy), paint);
+        canvas.drawLine(Offset(center.dx, center.dy - s * 0.7), Offset(center.dx, center.dy - gap4), paint);
+        canvas.drawLine(Offset(center.dx, center.dy + gap4), Offset(center.dx, center.dy + s * 0.7), paint);
+        canvas.drawCircle(center, 2.5, paintFill);
+        break;
+
+      case 'diamond':
+        final path = Path();
+        path.moveTo(center.dx, center.dy - s);
+        path.lineTo(center.dx + s * 0.6, center.dy);
+        path.lineTo(center.dx, center.dy + s);
+        path.lineTo(center.dx - s * 0.6, center.dy);
+        path.close();
+        canvas.drawPath(path, paint);
+        canvas.drawCircle(center, 3, paintFill);
+        break;
+    }
   }
 
-  Widget _buildPost(Map<String, dynamic> post) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFF232E3C),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // رأس المنشور
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                const CircleAvatar(
-                  radius: 18,
-                  backgroundColor: Color(0xFF2AABEE),
-                  child: Text('ح', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('قناة حيدر عادل',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF2AABEE))),
-                    Text(post['time'], style: const TextStyle(fontSize: 11, color: Colors.white38)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // محتوى المنشور
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(post['content'],
-                style: const TextStyle(fontSize: 14, color: Colors.white, height: 1.6)),
-          ),
-          const SizedBox(height: 10),
-          // التفاعلات والمشاهدات
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // ايموجي التفاعلات
-                Row(
-                  children: post['reactions'].entries.map<Widget>((e) {
-                    return Container(
-                      margin: const EdgeInsets.only(left: 6),
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF17212B),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text('${e.key} ${e.value}',
-                          style: const TextStyle(fontSize: 12, color: Colors.white70)),
-                    );
-                  }).toList(),
-                ),
-                // المشاهدات
-                Row(
-                  children: [
-                    const Icon(Icons.remove_red_eye_outlined, size: 14, color: Colors.white38),
-                    const SizedBox(width: 4),
-                    Text('${post['views']}', style: const TextStyle(fontSize: 12, color: Colors.white38)),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
