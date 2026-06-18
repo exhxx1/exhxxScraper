@@ -1,140 +1,156 @@
 import 'package:flutter/material.dart';
 
-void main() => runApp(const ExhxxChannelApp());
+void main() => runApp(const ChannelApp());
 
-class ExhxxChannelApp extends StatelessWidget {
-  const ExhxxChannelApp({super.key});
+class ChannelApp extends StatelessWidget {
+  const ChannelApp({super.key});
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'ملفات حيدر عادل',
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: const Color(0xFF030A05),
-        appBarTheme: const AppBarTheme(backgroundColor: Color(0xFF06140A), elevation: 0),
-        cardColor: const Color(0xFF0B1F10),
+      title: 'قناة حيدر عادل',
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF17212B),
+        colorScheme: const ColorScheme.dark(primary: Color(0xFF2AABEE)),
       ),
-      home: const FeedScreen(),
+      home: const ChannelScreen(),
     );
   }
 }
 
-class FeedScreen extends StatefulWidget {
-  const FeedScreen({super.key});
+class ChannelScreen extends StatefulWidget {
+  const ChannelScreen({super.key});
   @override
-  State<FeedScreen> createState() => _FeedScreenState();
+  State<ChannelScreen> createState() => _ChannelScreenState();
 }
 
-class _FeedScreenState extends State<FeedScreen> {
-  // بيانات وهمية لمحاكاة المنشورات الحقيقية (بديل مؤقت لقاعدة البيانات)
+class _ChannelScreenState extends State<ChannelScreen> {
   final List<Map<String, dynamic>> _posts = [
     {
-      'title': '🔥 العرض الأقوى حالياً 🖤',
-      'content': 'تريد ملف "نـ.ـت مجـ.ـاني"؟ استقرار تام بدون انقطاع!\n\nالمدة: 6 أشهر كاملة.\nالسعر: 20 فقط!\n\nلضمان استمرار الملفات لا تنسون التفاعل 💙',
+      'content': '🔥 العرض الأقوى حالياً\n\nتريد ملف نت مجاني؟ استقرار تام بدون انقطاع!\nالمدة: 6 أشهر كاملة.\nالسعر: 20 فقط!\n\nلضمان استمرار الملفات لا تنسون التفاعل 💙',
+      'time': '10:30 ص',
       'views': 2600,
-      'likes': 84,
-      'isLiked': false,
+      'reactions': {'❤️': 84, '🔥': 42, '👍': 31},
     },
     {
-      'title': '⚡ تحديث ملفات V2Ray',
-      'content': 'ملاحظة: شغال زين وخط آسيا.\nتم رفع أحدث الملفات الحصرية، تعمل ببنك ممتاز للألعاب. جربوها الآن.',
+      'content': '⚡ تحديث ملفات V2Ray\n\nشغال زين وخط آسيا.\nتم رفع أحدث الملفات الحصرية، تعمل ببنك ممتاز للألعاب. جربوها الآن.',
+      'time': '08:15 ص',
       'views': 1100,
-      'likes': 49,
-      'isLiked': true,
+      'reactions': {'👍': 49, '🔥': 20},
     },
     {
-      'title': '🛠️ تطبيق كاشف الأبراج (نسخة المتابعين)',
-      'content': 'تم إطلاق تطبيق exhxx78 الجديد.\nتحديد مباشر للأبراج الحقيقية وربط مع الأقمار الصناعية.\nحمل التطبيق من الملف المرفق.',
+      'content': '🛠️ تطبيق كاشف الأبراج\n\nتم إطلاق التطبيق الجديد.\nتحديد مباشر للأبراج الحقيقية.\nحمل التطبيق من الملف المرفق.',
+      'time': 'أمس',
       'views': 5400,
-      'likes': 150,
-      'isLiked': false,
-    }
+      'reactions': {'❤️': 150, '👏': 88, '🔥': 60},
+    },
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Column(
-          children: const [
-            Text("👑 ملفات حيدر عادل", style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 18)),
-            Text("67100 مشترك", style: TextStyle(color: Colors.white54, fontSize: 12)),
+        backgroundColor: const Color(0xFF232E3C),
+        leading: const CircleAvatar(
+          backgroundColor: Color(0xFF2AABEE),
+          child: Text('ح', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
+        title: const Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('قناة حيدر عادل', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            Text('67,100 مشترك', style: TextStyle(fontSize: 12, color: Colors.white54)),
           ],
         ),
-        centerTitle: true,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1.0),
-          child: Container(color: const Color(0xFF00FF41).withOpacity(0.3), height: 1.0),
-        ),
+        actions: [
+          IconButton(icon: const Icon(Icons.search), onPressed: () {}),
+          IconButton(icon: const Icon(Icons.more_vert), onPressed: () {}),
+        ],
       ),
       body: ListView.builder(
-        padding: const EdgeInsets.only(top: 10, bottom: 80),
+        padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: _posts.length,
         itemBuilder: (context, index) {
-          var post = _posts[index];
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: const Color(0xFF00FF41).withOpacity(0.2)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(15.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(post['title'], style: const TextStyle(color: Color(0xFF00FF41), fontSize: 16, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 10),
-                  Text(post['content'], style: const TextStyle(color: Colors.white, fontSize: 14, height: 1.5)),
-                  const SizedBox(height: 15),
-                  const Divider(color: Colors.white12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // عداد المشاهدات
-                      Row(
-                        children: [
-                          const Icon(Icons.remove_red_eye, color: Colors.grey, size: 18),
-                          const SizedBox(width: 5),
-                          Text("${post['views']} مشاهدة", style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                        ],
-                      ),
-                      // زر التفاعل (اللايك)
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: Icon(
-                              post['isLiked'] ? Icons.favorite : Icons.favorite_border,
-                              color: post['isLiked'] ? Colors.redAccent : Colors.grey,
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                post['isLiked'] = !post['isLiked'];
-                                post['isLiked'] ? post['likes']++ : post['likes']--;
-                              });
-                            },
-                          ),
-                          Text("${post['likes']}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
+          final post = _posts[index];
+          return _buildPost(post);
         },
       ),
-      // زر الإدارة (خاص بك فقط لنشر الملفات)
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF00FF41),
-        onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("🛠️ هذا الزر مخصص للمدير (حيدر عادل) لرفع المنشورات والملفات!", style: TextStyle(fontWeight: FontWeight.bold)),
-            backgroundColor: Colors.black87,
-          ));
-        },
-        child: const Icon(Icons.add, color: Colors.black),
+    );
+  }
+
+  Widget _buildPost(Map<String, dynamic> post) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: const Color(0xFF232E3C),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // رأس المنشور
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                const CircleAvatar(
+                  radius: 18,
+                  backgroundColor: Color(0xFF2AABEE),
+                  child: Text('ح', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('قناة حيدر عادل',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF2AABEE))),
+                    Text(post['time'], style: const TextStyle(fontSize: 11, color: Colors.white38)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          // محتوى المنشور
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(post['content'],
+                style: const TextStyle(fontSize: 14, color: Colors.white, height: 1.6)),
+          ),
+          const SizedBox(height: 10),
+          // التفاعلات والمشاهدات
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // ايموجي التفاعلات
+                Row(
+                  children: post['reactions'].entries.map<Widget>((e) {
+                    return Container(
+                      margin: const EdgeInsets.only(left: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF17212B),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text('${e.key} ${e.value}',
+                          style: const TextStyle(fontSize: 12, color: Colors.white70)),
+                    );
+                  }).toList(),
+                ),
+                // المشاهدات
+                Row(
+                  children: [
+                    const Icon(Icons.remove_red_eye_outlined, size: 14, color: Colors.white38),
+                    const SizedBox(width: 4),
+                    Text('${post['views']}', style: const TextStyle(fontSize: 12, color: Colors.white38)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
