@@ -1,202 +1,282 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'dart:io';
+import 'dart:async';
+import 'dart:math';
 
-void main() => runApp(const CrosshairApp());
+void main() {
+  runApp(const CloudReaperApp());
+}
 
-class CrosshairApp extends StatelessWidget {
-  const CrosshairApp({super.key});
+class CloudReaperApp extends StatelessWidget {
+  const CloudReaperApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'EXHXX CloudReaper',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
-      home: const HomeScreen(),
+      theme: ThemeData.dark().copyWith(
+        scaffoldBackgroundColor: const Color(0xFF070B19),
+        primaryColor: const Color(0xFF00FF41),
+        textTheme: const TextTheme(
+          bodyMedium: TextStyle(fontFamily: 'monospace', color: Colors.white),
+        ),
+      ),
+      home: const DashboardScreen(),
     );
   }
 }
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({super.key});
+
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
-  static const _platform = MethodChannel('overlay_channel');
-  bool _overlayActive = false;
-  bool _hasPermission = false;
-  int _selected = 0;
-  Color _color = Colors.red;
-  double _size = 60;
-  double _fov = 90;
-  double _opacity = 1.0;
+class _DashboardScreenState extends State<DashboardScreen> {
+  // === الإحصائيات ===
+  int totalScanned = 0;
+  int aliveIps = 0;
+  int deadIps = 0;
+  bool isScanning = false;
 
-  final List<Map<String, dynamic>> _crosshairs = [
-    {'name': 'قناصة', 'type': 'sniper'},
-    {'name': 'دائري', 'type': 'circle'},
-    {'name': 'نقطة', 'type': 'dot'},
-    {'name': 'COD', 'type': 'cod'},
-  ];
+  // === الإعدادات ===
+  double _threads = 50;
+  double _timeout = 2.0;
+  final TextEditingController _portController = TextEditingController(text: "80, 443");
+  
+  // === الكونسول الحي ===
+  List<String> consoleLogs = [];
+  final ScrollController _scrollController = ScrollController();
 
-  final List<Color> _colors = [
-    Colors.red, Colors.green, Colors.blue, Colors.yellow, Colors.white, Colors.orange, Colors.cyan,
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _checkPermission();
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) _checkPermission();
-  }
-
-  Future<void> _checkPermission() async {
-    try {
-      final granted = await _platform.invokeMethod('checkPermission');
-      setState(() => _hasPermission = granted ?? false);
-    } catch (_) {}
-  }
-
-  Future<void> _requestPermission() async {
-    try {
-      await _platform.invokeMethod('requestOverlayPermission');
-    } catch (e) {
-      _showError('خطأ بالاتصال بالنظام: $e\nتأكد من بناء التطبيق مجدداً.');
-    }
-  }
-
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg, style: const TextStyle(fontWeight: FontWeight.bold)), backgroundColor: Colors.redAccent));
-  }
-
-  Future<void> _toggleOverlay() async {
-    if (!_hasPermission) {
-      await _requestPermission();
-      return;
-    }
-    try {
-      if (_overlayActive) {
-        await _platform.invokeMethod('stopOverlay');
-      } else {
-        await _platform.invokeMethod('startOverlay', {
-          'type': _crosshairs[_selected]['type'],
-          'color': _color.value,
-          'size': _size,
-          'fov': _fov,
-          'opacity': _opacity,
-        });
+  // === دالة طباعة الكونسول ===
+  void logToConsole(String msg) {
+    setState(() {
+      consoleLogs.add("[${DateTime.now().toString().substring(11, 19)}] $msg");
+      if (consoleLogs.length > 200) consoleLogs.removeAt(0); // منع امتلاء الرام
+    });
+    // النزول التلقائي لأسفل الكونسول
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (_scrollController.hasClients) {
+        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
       }
-      setState(() => _overlayActive = !_overlayActive);
-    } catch (e) {
-      _showError('لم يتم العثور على كود الـ Native! تأكد من رفع الكود للمصنع بشكل صحيح. ($e)');
+    });
+  }
+
+  // === محاكي توليد الآيبيهات (للتجربة السريعة) ===
+  String getRandomCloudflareIp() {
+    final ranges = ["104.16", "104.17", "104.18", "104.19", "172.64", "172.65"];
+    final r = Random();
+    return "${ranges[r.nextInt(ranges.length)]}.${r.nextInt(255)}.${r.nextInt(255)}";
+  }
+
+  // === محرك الفحص الأساسي ===
+  Future<void> startScan() async {
+    setState(() {
+      isScanning = true;
+      totalScanned = 0; aliveIps = 0; deadIps = 0;
+      consoleLogs.clear();
+    });
+    logToConsole("⚡ بدء تشغيل محرك EXHXX Reaper...");
+    logToConsole("🎯 البورتات المستهدفة: ${_portController.text}");
+    logToConsole("🚀 عدد العمال (Threads): ${_threads.toInt()}");
+
+    // محاكاة عمل الـ Threads للاتصال السريع
+    while (isScanning) {
+      List<Future> tasks = [];
+      for (int i = 0; i < _threads.toInt(); i++) {
+        if (!isScanning) break;
+        tasks.add(_checkIp(getRandomCloudflareIp()));
+      }
+      await Future.wait(tasks);
+      await Future.delayed(const Duration(milliseconds: 100)); // استراحة خفيفة للمعالج
     }
+  }
+
+  void stopScan() {
+    setState(() {
+      isScanning = false;
+    });
+    logToConsole("🛑 تم إيقاف الفحص يدوياً.");
+  }
+
+  Future<void> _checkIp(String ip) async {
+    if (!isScanning) return;
+    
+    // محاكاة الفحص (هنا نضع Socket.connect الحقيقي لاحقاً)
+    await Future.delayed(Duration(milliseconds: 500 + Random().nextInt(1000)));
+    
+    bool isAlive = Random().nextInt(100) > 85; // نسبة نجاح وهمية 15% للتجربة
+    
+    if (!mounted) return;
+    setState(() {
+      totalScanned++;
+      if (isAlive) {
+        aliveIps++;
+        logToConsole("✅ LIVE -> $ip | HTTP 200 | CF-RAY");
+      } else {
+        deadIps++;
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0D1117),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF161B22),
-        title: const Text('🎯 EXHXX Aim', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: const Color(0xFF0B1221),
+        title: const Text('💀 EXHXX CloudReaper Pro', style: TextStyle(color: Color(0xFF00FF41), fontWeight: FontWeight.bold)),
         centerTitle: true,
+        elevation: 0,
+        actions: [
+          IconButton(icon: const Icon(Icons.data_object, color: Colors.amber), onPressed: () {})
+        ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+      body: Padding(
+        padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            if (!_hasPermission)
-              GestureDetector(
-                onTap: _requestPermission,
-                child: Container(
-                  padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 16),
-                  decoration: BoxDecoration(color: Colors.orange.withOpacity(0.2), border: Border.all(color: Colors.orange), borderRadius: BorderRadius.circular(8)),
-                  child: const Text('اضغط هنا لمنح صلاحية الظهور فوق التطبيقات', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
-                ),
-              ),
-            
+            // === بطاقات الإحصائيات ===
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                _buildStatCard("مفحوص", totalScanned.toString(), Colors.blueAccent),
+                _buildStatCard("شغال ✅", aliveIps.toString(), const Color(0xFF00FF41)),
+                _buildStatCard("ميت ❌", deadIps.toString(), Colors.redAccent),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // === لوحة التحكم والإعدادات ===
             Container(
-              height: 200, width: double.infinity, color: const Color(0xFF1C2526),
-              child: Transform.scale(
-                scale: _fov / 90.0,
-                child: Center(
-                  child: Opacity(
-                    opacity: _opacity,
-                    child: CustomPaint(size: Size(_size * 2.5, _size * 2.5), painter: CrosshairPainter(type: _crosshairs[_selected]['type'], color: _color, size: _size)),
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0B1221),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("⚙️ إعدادات المحرك (Engine Controls)", style: TextStyle(color: Colors.amber, fontWeight: FontWeight.bold)),
+                  const Divider(color: Colors.white12),
+                  
+                  // Threads Slider
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("عمليات متزامنة (Threads):"),
+                      Text("${_threads.toInt()}", style: const TextStyle(color: Color(0xFF00FF41), fontWeight: FontWeight.bold)),
+                    ],
                   ),
+                  Slider(
+                    value: _threads, min: 10, max: 200, divisions: 19,
+                    activeColor: const Color(0xFF00FF41),
+                    onChanged: isScanning ? null : (v) => setState(() => _threads = v),
+                  ),
+
+                  // Timeout Slider
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text("مهلة الاتصال (Timeout):"),
+                      Text("${_timeout.toStringAsFixed(1)}s", style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  Slider(
+                    value: _timeout, min: 0.5, max: 5.0, divisions: 9,
+                    activeColor: Colors.orange,
+                    onChanged: isScanning ? null : (v) => setState(() => _timeout = v),
+                  ),
+
+                  // Ports Input
+                  TextField(
+                    controller: _portController,
+                    enabled: !isScanning,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      labelText: 'البورتات (مثال: 80, 443, 8080)',
+                      labelStyle: const TextStyle(color: Colors.grey),
+                      enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                      focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00FF41))),
+                      filled: true, fillColor: Colors.black26,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // === الكونسول الحي (Live Console) ===
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF00FF41).withOpacity(0.5)),
+                ),
+                child: ListView.builder(
+                  controller: _scrollController,
+                  itemCount: consoleLogs.length,
+                  itemBuilder: (context, index) {
+                    String log = consoleLogs[index];
+                    Color textColor = Colors.white70;
+                    if (log.contains("✅")) textColor = const Color(0xFF00FF41);
+                    if (log.contains("🛑")) textColor = Colors.redAccent;
+                    if (log.contains("⚡")) textColor = Colors.amber;
+
+                    return Text(log, style: TextStyle(color: textColor, fontSize: 12));
+                  },
                 ),
               ),
             ),
-            const SizedBox(height: 20),
-            
-            Wrap(
-              spacing: 8, children: List.generate(_crosshairs.length, (i) => ChoiceChip(
-                label: Text(_crosshairs[i]['name']), selected: _selected == i,
-                onSelected: (v) => setState(() => _selected = i),
-                selectedColor: _color, labelStyle: TextStyle(color: _selected == i ? Colors.black : Colors.white),
-              )),
-            ),
-            const SizedBox(height: 20),
-            
-            Wrap(
-              spacing: 12, children: _colors.map((c) => GestureDetector(
-                onTap: () => setState(() => _color = c),
-                child: CircleAvatar(backgroundColor: c, radius: 18, child: _color == c ? const Icon(Icons.check, color: Colors.black) : null),
-              )).toList(),
-            ),
-            const SizedBox(height: 20),
-            
-            Slider(value: _size, min: 20, max: 120, onChanged: (v) => setState(() => _size = v)),
-            const Text('حجم القناصة', style: TextStyle(color: Colors.white70)),
-            
-            Slider(value: _fov, min: 60, max: 120, onChanged: (v) => setState(() => _fov = v)),
-            const Text('منظور الـ FOV', style: TextStyle(color: Colors.white70)),
-            
-            const SizedBox(height: 30),
+            const SizedBox(height: 15),
+
+            // === أزرار التشغيل ===
             SizedBox(
-              width: double.infinity, height: 50,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: !_hasPermission ? Colors.orange : _overlayActive ? Colors.red : Colors.green),
-                onPressed: _toggleOverlay,
-                child: Text(!_hasPermission ? 'امنح الصلاحية أولاً' : _overlayActive ? 'إيقاف القنص' : 'تفعيل القنص', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+              width: double.infinity,
+              height: 55,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isScanning ? Colors.redAccent : const Color(0xFF00FF41),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                icon: Icon(isScanning ? Icons.stop_circle : Icons.rocket_launch, color: Colors.black),
+                label: Text(
+                  isScanning ? "إيقاف الهجوم (STOP)" : "بدء الصيد (START Hacking)",
+                  style: const TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                onPressed: isScanning ? stopScan : startScan,
               ),
-            )
+            ),
           ],
         ),
       ),
     );
   }
-}
 
-class CrosshairPainter extends CustomPainter {
-  final String type; final Color color; final double size;
-  CrosshairPainter({required this.type, required this.color, required this.size});
-
-  @override
-  void paint(Canvas canvas, Size cs) {
-    final p = Paint()..color = color..strokeWidth = 3..style = PaintingStyle.stroke..strokeCap = StrokeCap.round..isAntiAlias = true;
-    final f = Paint()..color = color..style = PaintingStyle.fill..isAntiAlias = true;
-    final c = Offset(cs.width/2, cs.height/2); final s = size * 0.5;
-    
-    switch (type) {
-      case 'sniper':
-        canvas.drawLine(Offset(c.dx-s,c.dy),Offset(c.dx-s*0.2,c.dy),p); canvas.drawLine(Offset(c.dx+s*0.2,c.dy),Offset(c.dx+s,c.dy),p);
-        canvas.drawLine(Offset(c.dx,c.dy-s),Offset(c.dx,c.dy-s*0.2),p); canvas.drawLine(Offset(c.dx,c.dy+s*0.2),Offset(c.dx,c.dy+s),p);
-        canvas.drawCircle(c,s*0.8,p); canvas.drawCircle(c,3,f); break;
-      case 'circle': canvas.drawCircle(c,s*0.8,p); canvas.drawLine(Offset(c.dx-s,c.dy),Offset(c.dx+s,c.dy),p); canvas.drawLine(Offset(c.dx,c.dy-s),Offset(c.dx,c.dy+s),p); canvas.drawCircle(c,3,f); break;
-      case 'dot': canvas.drawCircle(c,4,f); canvas.drawLine(Offset(c.dx-s,c.dy),Offset(c.dx-s*0.25,c.dy),p); canvas.drawLine(Offset(c.dx+s*0.25,c.dy),Offset(c.dx+s,c.dy),p); canvas.drawLine(Offset(c.dx,c.dy-s),Offset(c.dx,c.dy-s*0.25),p); canvas.drawLine(Offset(c.dx,c.dy+s*0.25),Offset(c.dx,c.dy+s),p); break;
-      case 'cod': p.strokeWidth=4; canvas.drawLine(Offset(c.dx-s,c.dy),Offset(c.dx-s*0.18,c.dy),p); canvas.drawLine(Offset(c.dx+s*0.18,c.dy),Offset(c.dx+s,c.dy),p); canvas.drawLine(Offset(c.dx,c.dy-s*0.7),Offset(c.dx,c.dy-s*0.18),p); canvas.drawLine(Offset(c.dx,c.dy+s*0.18),Offset(c.dx,c.dy+s*0.7),p); canvas.drawCircle(c,3,f); break;
-    }
+  Widget _buildStatCard(String title, String value, Color color) {
+    return Expanded(
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 15),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1221),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.3)),
+          boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 10)],
+        ),
+        child: Column(
+          children: [
+            Text(value, style: TextStyle(color: color, fontSize: 22, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 5),
+            Text(title, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+          ],
+        ),
+      ),
+    );
   }
-  @override bool shouldRepaint(covariant CustomPainter o) => true;
 }
