@@ -5,7 +5,17 @@ import 'dart:async';
 import 'dart:math';
 
 void main() {
+  // تجاوز أخطاء شهادات الـ SSL عالمياً لتسهيل فحص الهوستات
+  HttpOverrides.global = MyHttpOverrides();
   runApp(const CloudReaperApp());
+}
+
+class MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) => true;
+  }
 }
 
 class CloudReaperApp extends StatelessWidget {
@@ -41,12 +51,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int aliveIps = 0;
   int deadIps = 0;
   bool isScanning = false;
-  List<String> workingTargetsList = []; // لتصدير النتائج الشغالة
+  List<String> workingTargetsList = []; 
 
   // === الإعدادات ===
   double _threads = 100;
   double _timeout = 2.0;
-  double _autoStopLimit = 0; // 0 يعني بدون توقف
+  double _autoStopLimit = 0;
   final TextEditingController _portController = TextEditingController(text: "80, 443");
   final TextEditingController _targetController = TextEditingController();
   bool _isHostMode = false;
@@ -55,8 +65,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, dynamic>> consoleLogs = [];
   final ScrollController _scrollController = ScrollController();
 
-  // === رانجات كلاودفلير المدمجة لتوليد الآيبيهات ===
-  final List<String> cfRanges = ["104.16", "104.17", "104.18", "104.19", "104.20", "104.21", "172.64", "172.65", "172.66", "172.67"];
+  final List<String> cfRanges = ["104.16", "104.17", "104.18", "104.19", "104.20", "104.21", "172.64", "172.65", "172.66", "172.67", "103.21", "103.22", "141.101"];
 
   void logToConsole(String msg, {bool isSuccess = false, bool isSystem = false, int port = 80}) {
     setState(() {
@@ -76,11 +85,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  // --- ميزة 1: توليد الآيبيهات ---
-  void generateCloudflareIPs() {
+  // --- ميزة التوليد بالعدد المخصص ---
+  void showGenerateDialog() {
+    TextEditingController countCtrl = TextEditingController(text: "100");
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0B1221),
+        title: const Text("⚙️ توليد آيبيهات عشوائية", style: TextStyle(color: Colors.amber)),
+        content: TextField(
+          controller: countCtrl,
+          keyboardType: TextInputType.number,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            labelText: "شگد تريد تولد؟ (مثال: 500)",
+            labelStyle: TextStyle(color: Colors.grey),
+            focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFF00FF41))),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("إلغاء", style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () {
+              int count = int.tryParse(countCtrl.text) ?? 50;
+              Navigator.pop(ctx);
+              _generateIPs(count);
+            },
+            child: const Text("توليد الآن", style: TextStyle(color: Color(0xFF00FF41), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _generateIPs(int count) {
     final r = Random();
     String generated = "";
-    for (int i = 0; i < 50; i++) {
+    for (int i = 0; i < count; i++) {
       String base = cfRanges[r.nextInt(cfRanges.length)];
       generated += "$base.${r.nextInt(256)}.${r.nextInt(256)}\n";
     }
@@ -88,19 +132,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _targetController.text = _targetController.text + generated;
       _isHostMode = false;
     });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("✅ تم توليد 50 آي بي عشوائي بنجاح!"), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("✅ تم توليد $count آي بي عشوائي بنجاح!"), backgroundColor: Colors.green));
   }
 
-  // --- ميزة 2: إزالة التكرار ---
   void removeDuplicates() {
     List<String> targets = _targetController.text.split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
     int originalLength = targets.length;
-    targets = targets.toSet().toList(); // حذف المكرر
+    targets = targets.toSet().toList();
     _targetController.text = targets.join('\n') + (targets.isNotEmpty ? '\n' : '');
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("🧹 تم تنظيف ${originalLength - targets.length} أهداف مكررة!"), backgroundColor: Colors.blueAccent));
   }
 
-  // --- ميزة 3: تصدير الشغال ---
   void exportLiveTargets() {
     if (workingTargetsList.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("⚠️ لا يوجد أهداف شغالة لتصديرها!"), backgroundColor: Colors.orange));
@@ -110,7 +152,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("📥 تم نسخ ${workingTargetsList.length} آي بي/هوست شغال للحافظة!"), backgroundColor: Colors.green));
   }
 
-  // === محرك الفحص الحقيقي ===
+  // === محرك الفحص الدقيق (HTTP Client) ===
   Future<void> startScan() async {
     List<String> rawTargets = _targetController.text.split('\n').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
     if (rawTargets.isEmpty) return;
@@ -122,7 +164,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       consoleLogs.clear();
     });
 
-    logToConsole("⚡ بدء الصيد العميق...", isSystem: true);
+    logToConsole("⚡ بدء الصيد العميق (HTTP Engine)...", isSystem: true);
     int concurrency = _threads.toInt();
     int currentIndex = 0;
 
@@ -136,7 +178,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         
         int myIndex = currentIndex++;
         if (myIndex >= rawTargets.length) break;
-        await _checkTarget(rawTargets[myIndex]);
+        await _checkTargetHTTP(rawTargets[myIndex]);
       }
     }
 
@@ -149,7 +191,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  Future<void> _checkTarget(String target) async {
+  Future<void> _checkTargetHTTP(String target) async {
     if (!isScanning) return;
     List<String> portsStr = _portController.text.split(',');
     bool foundAlive = false;
@@ -157,22 +199,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
     for (String pStr in portsStr) {
       if (!isScanning) break;
       int port = int.tryParse(pStr.trim()) ?? 80;
+      // البورتات الآمنة تستخدم HTTPS
+      String scheme = (port == 443 || port == 8443 || port == 2053 || port == 2083 || port == 2087 || port == 2096) ? "https" : "http";
       
+      HttpClient? client;
       try {
-        final socket = await Socket.connect(target, port, timeout: Duration(milliseconds: (_timeout * 1000).toInt()));
-        socket.destroy();
+        client = HttpClient()
+          ..connectionTimeout = Duration(milliseconds: (_timeout * 1000).toInt());
+
+        final request = await client.getUrl(Uri.parse('$scheme://$target:$port/'));
+        request.headers.set('User-Agent', 'Mozilla/5.0');
+        request.headers.set('Connection', 'close');
+
+        final response = await request.close();
+        int statusCode = response.statusCode;
+
+        // جلب هيدرات كلاودفلير للتأكيد
+        String server = response.headers.value('Server') ?? '';
+        String cfRay = response.headers.value('CF-RAY') ?? '';
+        bool isCf = server.toLowerCase().contains('cloudflare') || cfRay.isNotEmpty;
+        String cfMark = isCf ? " [CF]" : "";
+
         foundAlive = true;
-        
         if (!mounted) return;
-        HapticFeedback.lightImpact(); // --- ميزة 7: هزاز عند الصيد ---
+        HapticFeedback.lightImpact();
+        
         setState(() {
           aliveIps++;
           workingTargetsList.add("$target:$port");
-          logToConsole("✅ LIVE -> $target:$port", isSuccess: true, port: port);
+          logToConsole("✅ $target:$port | HTTP $statusCode$cfMark", isSuccess: true, port: port);
         });
-        break; 
+        break; // إذا اشتغل بورت نتوقف وننتقل للهدف التالي
       } catch (e) {
         // ميت
+      } finally {
+        client?.close(force: true); // تنظيف الرام فوراً
       }
     }
 
@@ -187,7 +248,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // --- ميزة 6: حساب نسبة النجاح ---
     double successRate = totalScanned == 0 ? 0 : (aliveIps / totalScanned) * 100;
 
     return Scaffold(
@@ -200,7 +260,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           IconButton(
             icon: const Icon(Icons.cleaning_services, color: Colors.amber, size: 20),
             tooltip: 'مسح الكونسول',
-            onPressed: () => setState(() => consoleLogs.clear()), // --- ميزة 8: مسح الكونسول ---
+            onPressed: () => setState(() => consoleLogs.clear()),
           )
         ],
       ),
@@ -208,7 +268,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            // === بطاقات الإحصائيات ===
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -219,7 +278,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 10),
 
-            // === الأهداف والإعدادات والأدوات ===
             Expanded(
               flex: 4,
               child: ListView(
@@ -250,12 +308,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           decoration: const InputDecoration(filled: true, fillColor: Colors.black26, border: OutlineInputBorder(), focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF00FF41)))),
                         ),
                         const SizedBox(height: 10),
-                        // --- شريط الأدوات الاحترافية ---
                         SingleChildScrollView(
                           scrollDirection: Axis.horizontal,
                           child: Row(
                             children: [
-                              _toolBtn(Icons.auto_awesome, "توليد CF", generateCloudflareIPs, Colors.blue),
+                              _toolBtn(Icons.auto_awesome, "توليد CF", showGenerateDialog, Colors.blue), // زر التوليد الجديد
                               const SizedBox(width: 8),
                               _toolBtn(Icons.delete_sweep, "تنظيف المكرر", removeDuplicates, Colors.orange),
                               const SizedBox(width: 8),
@@ -282,7 +339,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         
                         TextField(
                           controller: _portController, enabled: !isScanning, style: const TextStyle(color: Colors.white),
-                          decoration: const InputDecoration(labelText: 'البورتات (80, 443)', labelStyle: TextStyle(color: Colors.grey), filled: true, fillColor: Colors.black26, isDense: true, border: OutlineInputBorder()),
+                          decoration: const InputDecoration(labelText: 'البورتات (80, 443, 8080)', labelStyle: TextStyle(color: Colors.grey), filled: true, fillColor: Colors.black26, isDense: true, border: OutlineInputBorder()),
                         ),
                       ],
                     ),
@@ -292,7 +349,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 10),
 
-            // === الكونسول التفاعلي (Live Console) ===
             Expanded(
               flex: 3,
               child: Container(
@@ -306,16 +362,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     Color txtColor = Colors.white70;
                     if (log['isSystem']) txtColor = Colors.amber;
                     else if (log['isSuccess']) {
-                      // --- ميزة 10: تلوين البورتات ---
                       txtColor = log['port'] == 443 ? const Color(0xFF00FFFF) : const Color(0xFF00FF41); 
                     }
 
                     return InkWell(
-                      // --- ميزة 3: النسخ باللمس ---
                       onTap: () {
                         if (log['isSuccess']) {
-                          Clipboard.setData(ClipboardData(text: log['msg'].replaceAll("✅ LIVE -> ", "")));
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("📋 تم نسخ الهدف!"), duration: Duration(seconds: 1)));
+                          // تنظيف النسخ من الرموز 
+                          String cleanIp = log['msg'].split('|')[0].replaceAll("✅ ", "").trim();
+                          Clipboard.setData(ClipboardData(text: cleanIp));
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("📋 تم نسخ: $cleanIp"), duration: const Duration(seconds: 1)));
                         }
                       },
                       child: Padding(
@@ -329,7 +385,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
             const SizedBox(height: 10),
 
-            // === زر التشغيل ===
             SizedBox(
               width: double.infinity, height: 50,
               child: ElevatedButton.icon(
